@@ -1,0 +1,88 @@
+#!/bin/bash
+
+if [[ "$*" =~ ^([[:graph:]]*[^[:graph:]]+)?-h([^[:graph:]]+[[:graph:]]*)?$ ]]; then
+	printf "Usage: ${0##*/} <MUSIC_ALBUM_FOLDER> <MUSIC_ALBUM_COVER>\n\n"
+	printf "Inserts the given Album Cover into every audio file inside the given folder.\n"
+	printf "Cover image must be of at least 500x500 and supported by imagemagick.\n"
+	printf "Images larger than 500x500 are automaticaly scaled down.\n"
+	printf "The metadata inside the images are automaticaly erased to save space.\n"
+	printf "Previous album arts are removed from the audio files.\n"
+	printf "Audio format detection relies on file extensions.\n"
+	fi
+
+if ! hash AtomicParsley; then sudo apt-get -y install atomicparsley; fi
+if ! hash convert; then sudo apt-get -y install imagemagick; fi
+if ! hash jpegoptim; then sudo apt-get -y install jpegoptim; fi
+if ! hash mat; then sudo apt-get -y install mat; fi
+
+if [[ "$2" =~ ^([-._ ]+|[Rr][Ee][Mm][Oo][Vv][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Cc][Ll][Ee][Aa][Rr]|[Nn][Oo][Nn][Ee])$ ]]; then
+	art="REMOVE_ALL"
+else
+	if [[ ( -f "$2" ) && ( -r "$2" ) ]]; then art="$2"
+	elif wget -O /tmp/aa.cover.tmp -c "$2"; then art="/tmp/aa.cover.tmp"; IS_TEMP=true
+	else echo "Cannot access '$2'"; exit 3; fi
+	width=$(identify -ping -format '%W\n%H' "$art" | sed '1q;d')
+	height=$(identify -ping -format '%W\n%H' "$art" | sed '2q;d')
+	IS_TEMP=false
+	art_lowercase=$(echo "$art" | tr '[:upper:]' '[:lower:]')
+
+	if [[ "$art_lowercase" =~ ^.*\.((web|w?bm)p|bm|d(cr|ib)|(bp|mn)g|j(p[2fx]|ng|xr)|tiff?|(fl|qt?)if|p[abgnp]m|x[bp]m|c(r[2w]|in)|[hw]dp)$ ]]; then
+		conv_art="${art%.*}\.$RANDOM\.${art##*.}"
+		convert "$art" -format jpg -quality 95 "$conv_art"
+		IS_TEMP=true
+	elif [[ "$art_lowercase" =~ ^.*\.(p(s[bd]|cx)|(gi|wm)f|a(png|i)|svgz?|eps[fi]?|ic(o|ns)|vsd)$ ]]; then
+		conv_art="${art%.*}\.$RANDOM\.${art##*.}"
+		convert "$art" -format png "$conv_art"
+		IS_TEMP=true
+	elif ! [[ ( "$art_lowercase" =~ ^.*\.((jpe?|pn)g|jpe)$ ) || ( $(xdg-mime query filetype "$art") =~ ^image/(jpeg|png)$ ) ]]; then
+		echo "'$2' is not an image"
+		exit 9
+		fi
+	if [[ $width -ge $height ]]; then IS_SQUARE=$((width / ((width - height) + 1)))
+	elif [[ $height -gt $width ]]; then IS_SQUARE=$((height / ((height - width) + 1))); fi
+	if [[ "$IS_SQUARE" -lt 100 ]]; then
+		read -p "Choosen image is not a square, are you sure this is the right one? [Y/n] " buffer
+		if [[ "$buffer" == [Nn]* ]]; then exit 0; fi
+		if hash gimp; then
+			read -p "Do you want to open it on GIMP for some adjusts? [y/N] " buffer
+			if [[ "$buffer" == [Yy]* ]]; then gimp "$art"; fi
+			fi
+		fi
+	if [[ ( $width -gt 500 ) || ( $height -gt 500 ) ]]; then
+		echo "Big image... [$width x $height]"
+		resized_art="${art%.*}.$RANDOM.${art##*.}"
+		if [[ "$IS_SQUARE" -ge 100 ]]; then echo '[]'; convert "$art" -resize 500x500\! "$resized_art"
+		elif [[ $width -gt $height ]]; then convert "$art" -scale 500x "$resized_art"
+		else convert "$art" -scale x500 "$resized_art"; fi
+		if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
+		art="$resized_art"
+		IS_TEMP=true
+	elif [[ ( $width -lt 499 ) || ( $height -lt 499 ) ]]; then
+		echo "Small image... [$width x $height]"
+		exit 11
+		fi
+	fi
+
+if [[ "$art" == *.jpg ]]; then jpegoptim --strip-all "$art"; fi
+mat "$art"
+
+audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc])$'
+junk_rx='^(([Ff][Oo][Ll][Dd][Ee][Rr]|AlbumArt.*)\.((jpe?|pn)g|jpe|bmp)|[Tt][Hh][Uu][Mm][Bb][Ss]\.[Dd][Bb])$'
+audio_content=$(find "$1" -regextype posix-extended -type f -regex "$audio_rx" -printf "%p\n")
+
+while read -r buffer; do
+	if [[ "$buffer" =~ ^.*\.([Mm][Pp][23]|[Aa][Aa][Cc])$ ]]; then
+		eyeD3 -v --to-v2.3 --strict --no-tagging-time-frame --remove-images "$buffer"
+		eyeD3 -v -add-image="$art":FRONT_COVER --strict --no-tagging-time-frame --remove-images "$buffer"
+	elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
+		AtomicParsley "$buffer" --artwork REMOVE_ALL
+		AtomicParsley "$buffer" --artwork "$art"
+	elif [[ "$buffer" =~ ^.*\.([Mm][Pp][Cc]|[Aa][Pp][Ee])$ ]]; then
+		
+	done <<< "$audio_content"
+
+find "$1" -type f -iname '*.m4?' -exec rename -fv 's/-temp-[[:digit:]]{1,6}\.m4([AaBb])$/.m4\1/' "{}" \;
+find "$1" -type f -regextype posix-extended -regex "$junk_rx" -delete
+
+if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
+
