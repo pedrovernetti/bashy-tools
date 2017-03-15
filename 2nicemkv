@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## Prints a help message
+## Prints a help message (use -h option to properly read it)
 help_message ()
 {
 	printf "Usage: ${0##*/} [OPTIONS] -i INPUT_FILE [OPTIONS]\n\n"
@@ -37,24 +37,22 @@ help_message ()
 		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'movie.mkv' with audio and video\n"
 		printf "from 'movie.mp4', 'poster.jpg' as its thumbnail and\n"
 		printf "embedded english subtitles extracted from 'eng.srt'.\033[0m\n\n"
-
 		printf "\033[3m${0##*/} -t 'Trailer' -s 'eng.srt' -s 'ger.srt' -i 'trlr.mp4' -O\033[0m\n"
 		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named after its content (something like\n"
 		printf "'Trailer 720p AVC AAC.mkv') with audio and video from\n"
 		printf "'trlr.mp4', no specific thumbnail, 'Trailer' as its title\n"
 		printf "and embedded english and german subtitles extracted from\n"
 		printf "'eng.srt' and 'ger.srt', respectively.\033[0m\n\n"
-
 		printf "\033[3m${0##*/} -l por -s eng:'sdh.srt' -i 'video.avi' -o 'out.mkv'\033[0m\n"
 		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'out.mkv' with audio and video\n"
 		printf "from 'video.avi', portuguese as its audio language\n"
 		printf "embedded english subtitles extracted from 'sdh.srt'.\033[0m\n"
 	elif [[ "$1" == "languages" ]]; then
-		printf "ISO 639-2B codes, plus english names for every supported\n"
+		printf "ISO 639-2B and ISO 639-1 codes, plus english names for every supported\n"
 		printf "language are listed below.\n"
 		printf "\033[2mAny of these will be understood, but ISO 639-2B (the 3-letters code)\n"
-		printf "is prefered, since it better avoids any ambiguity.\033[0m\n\n"
-		printf " 639-3\t639-2\tenglish name\n\n"
+		printf "is prefered, since it better avoids ambiguity.\033[0m\n\n"
+		printf " 639-2B\t639-1\tenglish name\n\n"
 		printf "$ISO639_REF\n" | sed -r \
 			-e 's/^(.*)[[:space:]]+\|[[:space:]]+(...)[[:space:]]+\|(.*)$/ \2\t\3\t\1/;' \
 			-e 's/^(.*\t.*\t.{50}).{4,}/\1.../' | sort | GREP_COLOR='01' egrep -i --color=always '^ ....'
@@ -151,6 +149,32 @@ to_utf8 ()
 	# ukr :: 1252 vs 1251
 }
 
+iterate_over_audios ()
+{
+	for i in `seq 1 20`; do
+		AUDIO_INFO_=$(mediainfo "$INPUT_" | \
+				sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p')
+		if [[ $(echo "$AUDIO_INFO_" | wc -c) -lt 8 ]]; then break; fi
+		AUDIO_TRACK_=$(echo "$AUDIO_INFO_" | grep '^ID' | \
+				sed -r 's/^.*:[\t ]+([[:digit:]]{1,2})[^[:graph:]]*$/\1/')
+		AUDIO_TRACK_=$((AUDIO_TRACK_ - 1))
+		AUDIO_COD_=$(echo -n "$AUDIO_INFO_" | grep -m1 '^[Ff]ormat' | sed -r 's/^.*:[\t ]+(.*)$/\1/')
+		AUDIO_CHA_=$(echo -n "$AUDIO_INFO_" | grep -E '^[Cc]hannel(s|.s.)' | \
+				sed -r 's/^.*:[\t ]+([[:digit:]]+).*$/\1/')
+		AUDIO_BR_=$(echo -n "$AUDIO_INFO_" | grep -E -m1 '^[Bb]it.?[Rr]ate[\t ]+:' | \
+				sed -r 's/^.*:[\t ]+(.*)$/\1/')
+		AUDIO_SIZE_=$(echo -n "$AUDIO_INFO_" | grep -E -m1 '^[Ss]tream.?[Ss]ize' | sed -r 's/^.*:[\t ]+(.*)$/\1/')
+		buffer=$(echo "$AUDIO_INFO_" | grep '^Language' | sed -r 's/^.*:[\t ]*([[:alpha:]]+)[^[:graph:]]*$/\1/')
+		printf "\033[2m$AUDIO_TRACK_\t<language: $buffer>, <$AUDIO_COD_>, "
+		echo -n "<$AUDIO_CHA_ channels>, <$AUDIO_BR_>, <$AUDIO_SIZE_>"
+		if [[ ( "$1" != "" ) && ( "$1" == "$AUDIO_TRACK_" ) ]]; then break; fi
+		if ! [[ ( "${buffer^^}" == "${AUDIO_LANG_^^}" ) || ( $(lang_code "$buffer") == "${AUDIO_LANG_,,}" ) ]]; then
+			AUDIO_TRACK_="NULL"
+		else printf "\n\t\033[7;33m[selected, based on language]\n\n"; break; fi
+		printf "\n\033[2m"
+		done
+}
+
 # SETTING THE DEFAULT VALUES OF THE MAIN VARIABLES
 TEST_MODE_=false
 INPUT_=""
@@ -162,7 +186,7 @@ AAC_AUDIO_=false
 AAC_SETTINGS_=""
 COVER_FILE_=""
 TEMP_COVER_FILE_=false
-AUDIO_TRACK_="NULL"
+AUDIO_TRACK_=""
 SUB_TRACKS_=""
 SUB_EXTRA_OPTIONS_=""
 ATTACH_OPTIONS_="--no-attachments"
@@ -231,27 +255,22 @@ if [[ ( "$INPUT_" == "" ) || !( -f "$INPUT_" ) || !( -r "$INPUT_" ) ]]; then
 else
 	if ! hash mediainfo &> /dev/null; then 
 		error critical "mediainfo is missing...\n" 103
+	elif [[ $(mediainfo --language=raw --full "$INPUT_" | grep -Ec '^[Vv]ideo[\t ]+#[^:]*$') -gt 1 ]]; then
+		error critical "There are multiple video tracks in the input file...\n" 10
 	elif [[ $(mediainfo --language=raw --full "$INPUT_" | grep -Ec '^[Aa]udio[\t ]+#[^:]*$') -gt 1 ]]; then
-		for i in `seq 1 20`; do
-			buffer=$(mediainfo "$INPUT_" | \
-					sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p' | \
-					grep '^Language' | sed -r 's/^.*:[\t ]*([[:alpha:]]+)[^[:graph:]]*$/\1/')
-			if [[ ( "${buffer^^}" == "${AUDIO_LANG_^^}" ) || ( $(lang_code "$buffer") == "${AUDIO_LANG_,,}" ) ]]; then
-				AUDIO_TRACK_=$(mediainfo "$INPUT_" | \
-						sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p' | \ 
-						grep '^ID' | sed -r 's/^.*:[\t ]+([[:digit:]]{1,2})[^[:graph:]]*$/\1/')
-				fi
-			done
+		error warning "There are multiple audio tracks in the input file: \033[2;33m\nID\tdetails...\n"
+		iterate_over_audios
 		if [[ "$AUDIO_TRACK_" == "NULL" ]]; then
-			error warning "There are multiple audio tracks in the input file: \n"
-			read -p "Which one is to be kept? [ID] " AUDIO_TRACK_
+			printf "\n\033[2;33m"; read -p "Which one is to be kept? [ID] " AUDIO_TRACK_; printf "\n"
+			iterate_over_audios $AUDIO_TRACK_ &> /dev/null
 			fi
+		printf "\033[0m"
 	else
 		AUDIO_TRACK_=1
+		declare -r AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Codec/Family%" "$INPUT_")
+		declare -r AUDIO_CHA_=$(mediainfo --language=raw --full --inform="Audio;%Channel(s)%" "$INPUT_")
 		fi
 	declare -r VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Codec/Family%" "$INPUT_")
-	declare -r AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Codec/Family%" "$INPUT_")
-	declare -r AUDIO_CHA_=$(mediainfo --language=raw --full --inform="Audio;%Channel(s)%" "$INPUT_")
 	buffer=$(mediainfo --full --language=raw --inform="Video;%Language/String3%" "$INPUT_")
 	if [[ ( "$VIDEO_LANG_" =~ ^(UND)?$ ) && ( "$buffer" =~ ^...$ ) ]]; then VIDEO_LANG_="$buffer"
 	elif [[ "$VIDEO_LANG_" == "" ]]; then VIDEO_LANG_="und"; fi
@@ -300,11 +319,11 @@ if [[ "$OUTPUT_" == "$INPUT_" ]]; then
 
 # PRINTING INPUT/OUTPUT INFORMATION
 printf "INPUT:\n\033[2m$INPUT_\033[0m\n"
-printf "\033[2;3;7mAudio: $AUDIO_COD_ [$AUDIO_CHA channels]\033[0;0;0m\n"
+printf "\033[2;3;7mAudio: $AUDIO_COD_ [$AUDIO_CHA_ channels]\033[0;0;0m\n"
 printf "\033[2;3;7mVideo: $VIDEO_COD_ [$RESOLUTION_]\033[0;0;0m\n"
 printf "OUTPUT:\n\033[2m$OUTPUT_\033[0m\n"
-if [[ "$AAC_AUDIO_" == true ]]; then printf "\033[2;3;7mAudio: AAC [$AUDIO_CHA channels]\033[0;0;0m\n"
-else printf "\033[2;3;7mAudio: $AUDIO_COD_ [$AUDIO_CHA channels]\033[0;0;0m\n"; fi
+if [[ "$AAC_AUDIO_" == true ]]; then printf "\033[2;3;7mAudio: AAC [$AUDIO_CHA_ channels]\033[0;0;0m\n"
+else printf "\033[2;3;7mAudio: $AUDIO_COD_ [$AUDIO_CHA_ channels]\033[0;0;0m\n"; fi
 printf "\033[2;3;7mVideo: $VIDEO_COD_ [$RESOLUTION_]\033[0;0;0m\n"
 
 # PROCESSING ANY GIVEN SUBTITLES
@@ -345,7 +364,7 @@ if [[ "$ADD_SUBTITLES_" == true ]]; then
 			elif ffmpeg -i "${SUB_LIST_[i]}" -vn -an -scodec srt "${SUB_LIST_[i]%.*}.srt"; then
 				SUB_IS_TEMP_[i]=true
 			else 
-				error critical "'${SUB_LIST_[i]}' contains no valid subtitles\n" 21
+				error critical "'${SUB_LIST_[i]}' contains no valid subtitles\n" 31
 				fi
 			fi
 		printf "\033[2m${SUB_LIST_[i]##*/} -> $SUB_LANG_"
@@ -371,13 +390,13 @@ if [[ "$COVER_FILE_" != "" ]]; then
 			COVER_FILE_="/tmp/nicemkv.cover.tmp"
 			TEMP_COVER_FILE_=true
 		else 
-			error critical "Cannot access '$2'\n" 19
+			error critical "Cannot access '$2'\n" 29
 			fi
 		fi
 	if [[ $(xdg-mime query filetype "$COVER_FILE_") != 'image/jpeg'* ]]; then
 		convert "$COVER_FILE_" -format jpg -quality 99 "${COVER_FILE_%.*}.jpg.tmp"
 		if [[ $? -ne 0 ]]; then
-			error critical "'$2' is not a valid image file\n" 10
+			error critical "'$2' is not a valid image file\n" 20
 			fi
 		OLD_COVER_FILE_="$COVER_FILE_"
 		COVER_FILE_="${COVER_FILE_%.*}.jpg.tmp"
