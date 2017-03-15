@@ -25,24 +25,34 @@ help_message ()
 		printf "  \033[1;30mFILE\033[0m must be a mkvtoolnix-supported audio/video file\n"
 		printf "  \033[1;30mIMG\033[0m  must be a JPEG or any imagemagick-supported image file\n"
 		printf "  \033[1;30mPATH\033[0m must be a valid file path to write a Matroska file to\n"
-		printf "  \033[1;30mLNG\033[0m  must be the english name or the ISO-639 code of a language\n"
+		printf "  \033[1;30mLNG\033[0m  must be the english name or the ISO 639-2B code of a language\n"
 		printf "  \033[1;30mST\033[0m   must be a SubRip (.srt) or any ffmpeg-supported subtitles file\n"
 		printf "  \033[1;30mTITL\033[0m can be any short piece of text\n\n" 
 		printf "Non-JPEG cover images are converted to JPEG before being attached,\n"
 		printf "as non-SubRip or non-UTF8 subtitles are all converted to UTF8 SubRip\n"
 		printf "before being embedded.\n\n"
+		printf "If a subtitles file is cleanly named after the ISO 639-2B code of its\n"
+		printf "language, there is no need to make its language explicit in the options.\n\n"
 		printf "Examples:\n\n\033[3m${0##*/} -c 'poster.jpg' -s english:'eng.srt' -i 'movie.mp4'\033[0m\n"
 		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'movie.mkv' with audio and video\n"
 		printf "from 'movie.mp4', 'poster.jpg' as its thumbnail and\n"
 		printf "embedded english subtitles extracted from 'eng.srt'.\033[0m\n\n"
+
+		printf "\033[3m${0##*/} -t 'Trailer' -s 'eng.srt' -s 'ger.srt' -i 'trlr.mp4' -O\033[0m\n"
+		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named after its content (something like\n"
+		printf "'Trailer 720p AVC AAC.mkv') with audio and video from\n"
+		printf "'trlr.mp4', no specific thumbnail, 'Trailer' as its title\n"
+		printf "and embedded english and german subtitles extracted from\n"
+		printf "'eng.srt' and 'ger.srt', respectively.\033[0m\n\n"
+
 		printf "\033[3m${0##*/} -l por -s eng:'sdh.srt' -i 'video.avi' -o 'out.mkv'\033[0m\n"
 		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'out.mkv' with audio and video\n"
 		printf "from 'video.avi', portuguese as its audio language\n"
 		printf "embedded english subtitles extracted from 'sdh.srt'.\033[0m\n"
 	elif [[ "$1" == "languages" ]]; then
-		printf "ISO 639-3 and ISO 639-2 codes, plus english names for every supported\n"
+		printf "ISO 639-2B codes, plus english names for every supported\n"
 		printf "language are listed below.\n"
-		printf "\033[2mAny of these will be understood, but ISO 639-3 (the 3-letters code)\n"
+		printf "\033[2mAny of these will be understood, but ISO 639-2B (the 3-letters code)\n"
 		printf "is prefered, since it better avoids any ambiguity.\033[0m\n\n"
 		printf " 639-3\t639-2\tenglish name\n\n"
 		printf "$ISO639_REF\n" | sed -r \
@@ -82,9 +92,12 @@ install_me ()
 }
 
 # EXTRACING THE MKVTOOLNIX LIST OF SUPPORTED LANGUAGES
-if hash mkvmerge; then declare -r ISO639_REF=$(mkvmerge --list-languages | \
-	tr '[:upper:]' '[:lower:]' | \
-	sed -r '1d;2d;/.*[^[:lower:] \t|;].*/d;s/[[:space:]]{2,}/ /g;'); fi
+if hash mkvmerge; then 
+	declare -r ISO639_REF=$(mkvmerge --list-languages | \
+				tr '[:upper:]' '[:lower:]' | \
+				sed -r '1d;2d;/.*[^[:lower:] \t|;].*/d;s/[[:space:]]{2,}/ /g;'; \
+				printf "greek | gre | el\nhebrew | heb |\n")
+	fi
 
 ## Prints the proper ISO-639-3 code for a given language
 lang_code ()
@@ -149,6 +162,7 @@ AAC_AUDIO_=false
 AAC_SETTINGS_=""
 COVER_FILE_=""
 TEMP_COVER_FILE_=false
+AUDIO_TRACK_="NULL"
 SUB_TRACKS_=""
 SUB_EXTRA_OPTIONS_=""
 ATTACH_OPTIONS_="--no-attachments"
@@ -215,7 +229,26 @@ if [[ ( "$INPUT_" == "" ) || !( -f "$INPUT_" ) || !( -r "$INPUT_" ) ]]; then
 	printf "Input file is missing or was not specified\n"
 	help_message
 else
-	if ! hash mediainfo &> /dev/null; then error critical "mediainfo is missing...\n" 103; fi
+	if ! hash mediainfo &> /dev/null; then 
+		error critical "mediainfo is missing...\n" 103
+	elif [[ $(mediainfo --language=raw --full "$INPUT_" | grep -Ec '^[Aa]udio[\t ]+#[^:]*$') -gt 1 ]]; then
+		for i in `seq 1 20`; do
+			buffer=$(mediainfo "$INPUT_" | \
+					sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p' | \
+					grep '^Language' | sed -r 's/^.*:[\t ]*([[:alpha:]]+)[^[:graph:]]*$/\1/')
+			if [[ ( "${buffer^^}" == "${AUDIO_LANG_^^}" ) || ( $(lang_code "$buffer") == "${AUDIO_LANG_,,}" ) ]]; then
+				AUDIO_TRACK_=$(mediainfo "$INPUT_" | \
+						sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p' | \ 
+						grep '^ID' | sed -r 's/^.*:[\t ]+([[:digit:]]{1,2})[^[:graph:]]*$/\1/')
+				fi
+			done
+		if [[ "$AUDIO_TRACK_" == "NULL" ]]; then
+			error warning "There are multiple audio tracks in the input file: \n"
+			read -p "Which one is to be kept? [ID] " AUDIO_TRACK_
+			fi
+	else
+		AUDIO_TRACK_=1
+		fi
 	declare -r VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Codec/Family%" "$INPUT_")
 	declare -r AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Codec/Family%" "$INPUT_")
 	declare -r AUDIO_CHA_=$(mediainfo --language=raw --full --inform="Audio;%Channel(s)%" "$INPUT_")
@@ -226,7 +259,6 @@ else
 	if [[ ( "$AUDIO_LANG_" =~ ^(UND)?$ ) && ( "$buffer" =~ ^...$ ) ]]; then AUDIO_LANG_="$buffer"
 	elif [[ "$AUDIO_LANG_" == "" ]]; then AUDIO_LANG_="und"; fi
 	fi
-printf "INPUT:\n\033[2m$INPUT_\033[0m\n"
 
 # SETTING (OR PROMPTING FOR) A TITLE (METADATA) IF NONE WAS SET PREVIOUSLY
 if [[ ( "$TITLE_" == "" ) && ( "$INPUT_" == *.mkv ) ]]; then
@@ -265,7 +297,15 @@ if [[ "$OUTPUT_" == "$INPUT_" ]]; then
 	printf "\nOutput would overwrite input...\nIf that is what you want, enable the '-r' option\n"
 	exit 65
 	fi
+
+# PRINTING INPUT/OUTPUT INFORMATION
+printf "INPUT:\n\033[2m$INPUT_\033[0m\n"
+printf "\033[2;3;7mAudio: $AUDIO_COD_ [$AUDIO_CHA channels]\033[0;0;0m\n"
+printf "\033[2;3;7mVideo: $VIDEO_COD_ [$RESOLUTION_]\033[0;0;0m\n"
 printf "OUTPUT:\n\033[2m$OUTPUT_\033[0m\n"
+if [[ "$AAC_AUDIO_" == true ]]; then printf "\033[2;3;7mAudio: AAC [$AUDIO_CHA channels]\033[0;0;0m\n"
+else printf "\033[2;3;7mAudio: $AUDIO_COD_ [$AUDIO_CHA channels]\033[0;0;0m\n"; fi
+printf "\033[2;3;7mVideo: $VIDEO_COD_ [$RESOLUTION_]\033[0;0;0m\n"
 
 # PROCESSING ANY GIVEN SUBTITLES
 if [[ "$ADD_SUBTITLES_" == true ]]; then
@@ -274,12 +314,25 @@ if [[ "$ADD_SUBTITLES_" == true ]]; then
 	SUB_f=$(if [[ "$AAC_AUDIO_" == true ]]; then printf "2"; else printf "1"; fi)
 	while [[ "$i" -lt "$j" ]]; do
 		if ! [[ "${SUB_LIST_[i]}" =~ ^[[:alpha:]]{3}:.*$ ]]; then
-			read -p "Enter the language of '${SUB_LIST_[i]##*/}': " buffer
+			if [[ "${SUB_LIST_[i]}" =~ ^[[:alpha:]]{3,15}:.*$ ]]; then
+				SUB_LANG_=$(lang_code $(printf "${SUB_LIST_[i]}" | sed -r 's/^([[:alpha:]]{3,15}):.*$/\1/'))
+				fi
+			if [[ "$SUB_LANG_" == "UND" ]] || \
+					[[ "${SUB_LIST_[i],,}" =~ ^.*[[:alpha:]]{3}\.(s(sa|rt|ub|a?mi)|ass)$ ]]; then
+				SUB_LANG_=$(lang_code $(printf "${SUB_LIST_[i]}" | sed -r 's/^.*([[:alpha:]]{3})\....$/\1/'))
+				fi
+			if [[ "$SUB_LANG_" == "UND" ]]; then
+				printf "\033[2;3;33m"; 
+				read -p "Name (in english or ISO 639-2 code) the language of '${SUB_LIST_[i]##*/}': " buffer
+				printf "\033[0;0;0m"
+				SUB_LANG_=$(lang_code "$buffer")
+				SUB_LIST_[i]=$(printf "${SUB_LIST_[i]}" | sed -r 's/^[[:alpha:]]{,12}://')
+				fi
 		else
-			buffer="${SUB_LIST_[i]:0:3}"
+			SUB_LANG_=$(lang_code "${SUB_LIST_[i]:0:3}")
 			SUB_LIST_[i]="${SUB_LIST_[i]:4}"
 			fi
-		SUB_LANG_=$(lang_code "$buffer")
+		
 		if [[ "$SUB_LANG_" == "UND" ]]; then
 			printf "Unrecognized language '$buffer'\n"
 			printf "Try '${0##*/} -hl' for a list of accepted languages and codes\n"
@@ -408,7 +461,7 @@ if [[ -f "$COVER_FILE_" ]] && \
 # CONSTRUCTING THE 'mkvmerge' COMMAND LINE
 if [[ "$RENAME_ONLY_" == false ]]; then
 if [[ "$AAC_AUDIO_" == true ]]; then FINAL_MKVMERGE_LINE_+="mkvmerge -v --output \"$OUTPUT_\" ${TRACK_0_/LANGCODE/${VIDEO_LANG_}} --no-audio-tracks --no-track-tags --no-global-tags $ATTACH_OPTIONS_ --video-tracks 0 '(' \"$INPUT_\" ')' ${TRACK_1_/LANGCODE/${AUDIO_LANG_}} --no-video-tracks --no-track-tags --no-global-tags --no-chapters --no-buttons --audio-tracks 0 '(' \"${INPUT_%.*}.aac\" ')' $SUB_EXTRA_OPTIONS_ --track-order \"0:0,1:0$SUB_TRACKS_\" ${COVER_//FILE/${COVER_FILE_}} --title \"$TITLE_\" ; rm -f \"${INPUT_%.*}.aac\""
-else FINAL_MKVMERGE_LINE_+="mkvmerge -v --output \"$OUTPUT_\" ${TRACK_0_/LANGCODE/${VIDEO_LANG_}} ${TRACK_1_/LANGCODE/${AUDIO_LANG_}} --no-track-tags --no-global-tags $ATTACH_OPTIONS_ --audio-tracks 1 --video-tracks 0 '(' \"$INPUT_\" ')' $SUB_EXTRA_OPTIONS_ --track-order \"0:0,0:1$SUB_TRACKS_\" ${COVER_//FILE/${COVER_FILE_}} --title \"$TITLE_\""; fi
+else FINAL_MKVMERGE_LINE_+="mkvmerge -v --output \"$OUTPUT_\" ${TRACK_0_/LANGCODE/${VIDEO_LANG_}} ${TRACK_1_/LANGCODE/${AUDIO_LANG_}} --no-track-tags --no-global-tags $ATTACH_OPTIONS_ --audio-tracks $AUDIO_TRACK_ --video-tracks 0 '(' \"$INPUT_\" ')' $SUB_EXTRA_OPTIONS_ --track-order \"0:0,0:1$SUB_TRACKS_\" ${COVER_//FILE/${COVER_FILE_}} --title \"$TITLE_\""; fi
 fi
 
 # RUNNING OR PRINTING THE FINAL COMMAND LINE
@@ -417,7 +470,7 @@ if [[ "$TEST_MODE_" == false ]]; then
 	bash -c "$FINAL_MKVMERGE_LINE_"
 else 
 	printf "GENERATED LOW-LEVEL COMMAND LINE:\n"
-	printf "\033[2m$PREVIOUS__LINES_$FINAL_MKVMERGE_LINE_\033[2m\n\n"
+	printf "\033[2;36m$PREVIOUS__LINES_$FINAL_MKVMERGE_LINE_\033[0m\n\n"
 	fi
 	
 # REPLACING/REMOVING INPUT FILES, AS WANTED
@@ -442,5 +495,4 @@ if [[ "$REMOVE_ALL_" == true ]]; then
 			done
 		fi
 	fi
-
 
