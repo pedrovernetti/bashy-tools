@@ -1,0 +1,2344 @@
+#!/bin/bash
+
+ # ==================================================== #
+ # This script looks better in a maximized window, on   #
+ # 1360px or wider screens...                           #
+ #                                                      #
+ # Run it with the '-h' option for better understanding #
+ #                                                      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # Originally written by <pedrovernetti@gmail.com>      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # tested in / thought for Ubuntu 14.04 and 16.04       #
+ # ==================================================== #
+
+
+# NOTE: ------- ------ ---- --- -- -
+# Some comments are weirdly-formated or may be looking
+# weird for a reason: some functions expect such formats
+# to pretty-print parts of this script in human-friendly
+# outputs generated on the fly
+# (i.e. comments starting with: ###, ####, #*)
+
+# languages considered as relevants by the user
+declare -r targ_langs=$(cat /etc/locale.nopurge 2> /dev/null | grep -Eo '^[a-z]{2}(_[[a-Z]{2})?' |
+	tr '_' '-' | tr '[:upper:]' '[:lower:]' | sort -u)
+
+# the linux distribution being used (to make sure it is Ubuntu)
+declare -r distro_=$(lsb_release -is)
+
+# the Ubuntu version it is running on (like "14.04")
+declare -r ubu_ver=$(lsb_release -sr)
+
+# the name of the Ubuntu version it is running on (like "trusty" or "xenial")
+declare -r ubu_name=$(lsb_release -sc)
+
+# the commercial version number of the newest Java version currently installed
+if ! [[ -e /usr/lib/jvm ]]; then declare -r java_ver=0
+else declare -r java_ver=$(ls /usr/lib/jvm | sed -r 's/java-([[:digit:]]+)-oracle/\1/' | sort | tail -n1); fi
+
+# the name of the real user who is really running this script
+declare -r real_user="${HOME##*/}"
+
+# current working directory's path (/home/<USER>/)
+declare -r current_dir=$(pwd)"/"
+
+# script's own path
+if [[ "$0" != /* ]]; then
+	if [[ -f "$PWD/$0" ]]; then declare -r selfpath="$PWD/$0"
+	else declare -r selfpath=$(find /bin /sbin /usr/bin /usr/sbin -type f -name '$0' -print 2>/dev/null); fi
+else
+	declare -r selfpath="$0"
+	fi
+
+# The width of the currently used terminal window in columns/characters
+declare -r termwidth=$(tput cols)
+
+# just a big separator for general use...
+declare -r separator="\n--------------------------------------------- ---- --- -- -\n"
+
+unsudo () #
+{
+	# Creates a tmp script containing all the given arguments ("$@"), runs it as
+	# the Real User (NOT Root), then discards it
+	local -r tmpscript=$(mktemp 2> /dev/null)
+	chmod 755 "$tmpscript" &> /dev/null
+	local dbus_stuff="/proc/$(pgrep gnome-session)/environ"
+	dbus_stuff=$(grep -z 'DBUS_SESSION_BUS_ADDRESS' "$dbus_stuff")
+	dbus_stuff="export DBUS_SESSION_BUS_ADDRESS=${dbus_stuff#*=}"
+	local -r content="$dbus_stuff\n${@//\\\\n/\\n}"
+	printf "#!/bin/bash\n${content//%/%%}\n" | sed -r -e 's/^[^[:graph:]]+//' \
+		-e 's/[^[:graph:]]+$//;s/^((.*)[\t ]+--mute|gsettings.*)$/\1 \&> \/dev\/null/' > "$tmpscript"
+	sudo -u $real_user -H -E "$tmpscript"
+	rm -f "$tmpscript" &> /dev/null
+}
+
+suwrite () #
+{
+	# Writes $1 to $2 (file), overwriting or appending accourding to $3
+	if [[ "$3" == a* ]]; then sudo bash -c "printf \"${1//\\/\\\\}\" >> \"$2\""
+	else sudo bash -c "printf \"${1//\\/\\\\}\" > \"$2\""; fi
+}
+
+add2startup () #
+{
+	# Adds the content of $1 to the /etc/rc.local script, which runs on every startup
+	sudo sh -c "sed -r -i '/^\\s*exit\\s+0\\s*$/i$1\n' /etc/rc.local"
+}
+
+add2shutdown () #
+{
+	# Adds the content of $1 to a new script (named as the content of $2) inside the
+	# /etc/rc6.d folder, which contains the scripts to be runned on every shutdown
+	sudo sh -c "echo '$1' > '/etc/rc6.d/K99$2'"
+}
+
+wdebi () #
+{
+	# Downloads a .deb package ($1 shall be its URL), installs it, then removes it or not
+	# It (the package) is saved in the given path ($2)
+	if wget -c -S -O "$2" "$1"; then
+		sudo gdebi "$2"
+		if [[ "$apt_opts" == *-q* ]]; then rm -f "$2"
+		else rm -i "$2"; fi
+		fi
+}
+
+wuntar () #
+{
+	# Downloads a tarball ($1 shall be its URL), which is saved at $2 (path), then extracted to $3 (path)
+	# then removed or not; $4 shall be the name of the thing to be installed (optional)
+	local what_=""
+	if [[ "$4" == "" ]]; then what_="extract ${2##*/}"
+	else what_="install $4"; fi
+	read -p "Do you want to $what_? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then
+		wget -c -S -O "$2" "$1"
+		tar -xv -C "$3" -f "$2" --keep-newer-files --ignore-case
+		if [[ "$apt_opts" == *-q* ]]; then rm -f "$2"
+		else rm -i "$2"; fi
+		return 0
+	else
+		return 1
+		fi
+}
+
+set_default_folder ()
+{ #TODO : old directory is not being deleted and its content is not being moved...
+	# Changes the path of a default folder (e.g. default music folder, default desktop folder...)
+	# where $1 shall be the folder type (may be "desktop", "documents", "downloads", "music", "pictures",
+	# "videos", "publicshare" or "templates") and $2 shall be the path to be taken as the new default
+
+	needs_root_permissions no
+
+	# if used without arguments:
+	#### Changes the \033[1mREAL\033[0m path and, maybe, the name of one of the default user \n   folders (those in your home folder, like \033[3mMusic\033[0m or \033[3mDownloads\033[0m)
+
+	#### Useful when, (e.g.) you want to keep your stuff in another disk partition\n   while keeping your home folder pretty and relevant
+
+	local type="$1"
+	local dir="$2"
+	if [[ $# -eq 0 ]]; then
+		printf "\nEnter a default folder to move (e.g. 'music', 'documents'):\n"; read type
+		printf "Enter the new actual path for this folder:\n"; read dir; printf "\n"
+		fi
+
+	type=$(echo "${type//[[:space:]]/ }" | sed -r 's/^[[:space:]]*(.*?)[[:space:]]*$/\L\1/')
+	if [[ "$type" =~ ^(public(s(hare)?)?|shared?)$ ]]; then type="publicshare"
+	elif [[ "$type" =~ ^(images?|photos?)$ ]]; then type="pictures"
+	elif [[ "$type" =~ ^(document|picture|template|video)$ ]]; then type="$type\s"; fi
+	if ! [[ "$type" =~ ^(desktop|documents|downloads|music|pictures|publicshare|templates|videos)$ ]]; then
+		printf "\033[0;31mInvalid folder type '$type'\033[0;31m\n"; return
+		fi
+	local xdg_d_name=$(echo "$type" | sed -r 's/^(.*)$/XDG_\U\1_DIR/')
+	local type_Name=$(cat "$HOME/.config/user-dirs.dirs" | grep "$xdg_d_name" | \
+		sed -r "s/.*\/(.*)\"$/\1/;s/[$]HOME/~/g")
+	local d_path="$dir"
+	local d_name="${dir##*/}"
+	local proper_icon="folder-$type"
+	if [[ "$proper_icon" == "folder-desktop" ]]; then proper_icon="user-desktop"; fi
+
+	if [[ "$d_path" != /* ]]; then printf "\033[0;31mInvalid path '$d_path'\033[0m\n"; return 2
+	elif ! [[ -e "$d_path" ]]; then mkdir "$d_path"
+	elif ! [[ ( -w "$d_path" ) || (!( -e "$d_path" ) && ( -w "${d_path%/*}/" )) ]]; then
+		printf "\033[0;31mNo write-access to '$d_path'\033[0m\n"; return
+	elif [[ -f "$d_path" ]]; then mv "$d_path" "$d_path.F"; mkdir "$d_path"; mv "$d_path.F" "$d_path/$d_name"; fi
+	gvfs-set-attribute -t stringv "$dir" metadata::custom-icon ""
+	gvfs-set-attribute "$dir" metadata::custom-icon-name "$proper_icon"
+
+	if [[ $(find "$HOME/$type_Name" 2> /dev/null | wc -l) -ge 1 ]]; then mv -i "$HOME/$type_Name"/* "$d_path"; fi
+	if [[ $(find "$HOME/$d_name" 2> /dev/null | wc -l) -ge 1 ]]; then mv -i "$HOME/$d_name"/* "$d_path"; fi
+	rm -fr "$HOME/$d_name" "$HOME/$type_Name" &> /dev/null
+	printf "...\n"
+
+	ln -s "$dir" "$HOME/$d_name"
+	if [[ $(cat "$HOME/.config/user-dirs.dirs"| grep "$xdg_d_name") != "$xdg_d_name=\"$HOME/$d_name\"" ]]; then
+		sed -i -r "s/^($xdg_d_name=)\".*\"$/\1\"\$HOME\/$d_name\"/" "$HOME/.config/user-dirs.dirs"
+		xdg-user-dirs-update
+		nautilus -q
+		fi
+}
+
+add_thumbnailer () #
+{
+	# Creates a new thumbnailer entry, where $1 is the thumnailer's name,
+	# $2 is the command and $3 is the covered MIMEs, separated by semicolons (';')
+	local -r tpath="/usr/share/thumbnailers/$1.thumbnailer"
+	suwrite "[Thumbnailer Entry]\nExec=$2\nMimeType=${3%;};" "$tpath"
+}
+
+set_as_default_app () #
+{
+	# Sets $1 (shall be the .desktop of some application) as the default application for
+	# all the MIMEs found in the MimeType key of the own .desktop
+	# (MIMEs passed as extra arguments precedes by a minus sign are excluded from the operation)
+	local mimes_=$(cat /usr/share/applications/$1 | grep '^MimeType' | sed -r 's/^MimeType=//;s/\;/ /g')
+	local appname_=$(cat /usr/share/applications/$1 | grep '^Name=' | sed 's/^Name=//' | head -n1)
+	for i in `seq 2 $#`; do 
+		if [[ "${!i}" =~ ^(application|audio|image|video|text)\!$ ]]; then
+			buffer2="${!i}"; buffer2="${buffer2//!}/[^[:space:]]+ "
+			mimes_alt=$(echo "$mimes_" | grep -Eo "$buffer2")
+		elif [[ "${!i}" == -*/* ]]; then 
+			buffer2="${!i}"; buffer2="${buffer2#-}"
+			buffer2="${buffer2//\//\\\/}"; buffer2="${buffer2//\*/[^[:space:]]+}"
+			mimes_=$(printf "$mimes_ " | sed -r "s/$buffer2 //g")
+			fi
+		done
+	if ! [[ "$mimes_alt" == "" ]]; then mimes_="$alt_mimes_"; fi
+	mimes_=$(printf "$mimes_" | sed -r 's/^[^[:graph:]]+//;s/[^[:graph:]]+$//' | \
+		tr ' ' '\n' | sort -u | tr '\n' ' ')
+	xdg-mime default $1 $mimes_
+	printf "\n\033[1m$appname_\033[0m ($1) is now the default application for:\n$mimes_\n"
+}
+
+set_command_alias () #
+{
+	# Creates an alias to command "$2", called "$3". If $1 is "hard", the alias will be made
+	# as a symlink or a short script (for a command With arguments) containing "$2".
+	# Otherwise, if $1 is "soft", the alias will be a simple 'alias' command in the ~/.bashrc
+	if ! hash "${2%%[[:space:]]*}"; then return 1; fi
+	if [[ "$1" == "soft" ]]; then
+		printf "\nalias ${3//[[:space:]]/-}='${2//%/%%}'" >> "$HOME/.bashrc"
+	elif [[ "$1" == "hard" ]]; then
+		if [[ -e "/usr/bin/$3" ]]; then return 2; fi
+		if [[ "$1" != *[[:space:]]* ]]; then 
+			sudo ln -T $(which "${2%%[[:space:]]*}") "/usr/bin/$3"
+		else 
+			printf "#!/bin/bash\n$2" > "/usr/bin/$3"
+			chmod 755 "/usr/bin/$3"
+			fi
+		fi
+}
+
+fix_on_unity_launcher () #
+{
+	unsudo gsettings set com.canonical.Unity.Launcher favorites "\"['application://ubiquity.desktop', 'application://org.gnome.Nautilus.desktop', 'application://firefox.desktop', 'application://libreoffice-writer.desktop', 'application://libreoffice-calc.desktop', 'application://org.gnome.Software.desktop', 'unity://running-apps', 'unity://expo-icon', 'unity://devices']\""
+
+}
+#fix_on_unity_launcher; exit
+vern () #
+{
+	# Prints a version string ($1) in a usefully comparable numeric format
+	# If $1 is the name of a installed package, it takes the installed version string
+	# If $1 is a packaged which is not installed, it takes '0.0.0' as the version string
+	if dpkg -s "${!#-1}" &> /dev/null; then
+		local x=$(apt-show-versions ${!#-1} | sed -r 's/^[[:graph:]]+[\t ]+//;s/[^[:digit:].].*$//')
+	elif apt-cache show "${!#-1}" &> /dev/null; then local x='0.0.0'
+	else local x=$(printf "'${!#-1}'" | tr -d -c '\-[:digit:]\.' | grep -Eo '[[:digit:]]+([-.][[:digit:]]+){,2}$')
+		fi
+	local major="${x%%[-.]*}"; x="${x#*[-.]}"
+	local minor="${x%%[-.]*}"; x="${x#*[-.]}"
+	local revis="${x%%[-.]*}"
+	echo $(printf "%02d%03d%04d" $major $minor $revis | sed -r 's/^0+([^0])/\1/;s/^0+$/0/')
+}
+
+is_x64 ()
+{
+	# Returns 0 only if system is x64
+	local x64=false
+	if [[ $(echo "${MACHTYPE,,}" | grep -Ec 'x86.64') -gt 0 ]]; then local x64=true; fi
+	if (hash uname &> /dev/null) && $x64 && [[ $(uname -m | grep -Ec '64') -gt 0 ]]; then x64=true; fi
+	if [[ "$x64" == true ]]; then return 0;
+	else return 1; fi
+}
+
+is_intel ()
+{
+	# Returns 0 only if proccessor's vendor is Intel
+	if ! hash lshw &> /dev/null; then return 1; fi
+	local -r val_=$(sudo lshw 2>&1 | sed -r -n '/^[[:space:]]+\*-cpu/,/^[[:space:]]+\*-[[:alpha:]]+/p' | \
+				grep -Eic '^[[:space:]]+vendor: .*intel.*$')
+	if [[ $val_ -gt 0 ]]; then return 0
+	else return 1; fi
+}
+
+is_amd ()
+{
+	# Returns 0 only if proccessor's vendor is AMD
+	if ! hash lshw &> /dev/null; then return 1; fi
+	local -r val_=$(sudo lshw 2>&1 | sed -r -n '/^[[:space:]]+\*-cpu/,/^[[:space:]]+\*-[[:alpha:]]+/p' | \
+				grep -Eic '^[[:space:]]+vendor: .*amd.*$')
+	if [[ $val_ -gt 0 ]]; then return 0
+	else return 1; fi
+}
+
+has_odd ()
+{
+	# Returns 0 only if machine has optical disc drive(s)
+	local -r oddcount=$(find /dev -mindepth 1 -maxdepth 1 -not -type d -not -type f -print | \
+				grep -Ec '^/dev/s(cd|r)[[:digit:]]*$')
+	if [[ $oddcount -gt 0 ]]; then return 0;
+	else return 1; fi
+}
+
+needs_root_permissions () #
+{
+	# Ensures the proper permissions/user for a coming action
+	if [[ ( "$1" == [Yy]* ) && ( $EUID -ne 0 ) ]]; then
+		printf "\n\033[0;31mYou need Root permissions for this...\033[0m\n\n"
+		exit 50
+	elif [[ ( "$1" == [Nn]* ) && ( $EUID -eq 0 ) ]]; then
+		printf "\n\033[0;33mIt is better to not do this as Root...\033[0m\n\n"
+		exit 50
+	else
+		sleep 1
+		fi
+}
+
+needs_internet_connection () #
+{
+	# Ensures internet connection is available
+	if [[ "$1" != [Nn]* ]] && 
+			! wget --spider http://launchpad.org/ &> /dev/null &&
+			! wget --spider https://google.com/ &> /dev/null && 
+			! wget --spider http://wikipedia.org &> /dev/null; then
+		printf "\n\033[0;31mYou need internet connection...\033[0m\n\n"
+		exit 49
+		fi
+}
+
+package_details () #
+{
+	# Prints details about all packages passed as arguments
+	local targets=$(echo ${*//_/ } | sed -r 's/^[^[:graph:]]+//;s/[^[:graph:]]+$//')
+	local descr
+	printf "Package details...\n\n"
+	for i in $targets; do
+		if apt-cache show $i &> /dev/null; then
+			descr=$(apt-cache show $i | sed -n '1,/^[^[:graph:]]*$/p' | \
+			sed -r -n '/^Description(-.+)?:/,/^[[:upper:]][[:graph:]]*?:/p' | \
+			sed -r -e "\$d;s/^Description(-..)?:[\t ]*(.*)/\\\\033[1m$i\\\\033[0m: \2\n/;s/^[ \t]+//")
+			if dpkg -s $i &> /dev/null; then 
+				buffer2=$(apt-file show $i | grep "^$i:" | grep 'bin/' | sed "s/^$i:[[:space:]]*//")
+				if [[ $(printf "$buffer2\n" | wc -l) -gt 0 ]]; then
+					descr+="\n\nDetected executables from \\033[1m$i\\033[0m:\n$buffer2"
+					fi
+				fi
+			printf "${descr//%/%%}\n\n------ ---- --- -- -\n\n"
+		else
+			printf "\033[1m$i\033[0m is not an available/installed package...\n"
+			fi
+		done
+}
+
+step_description () #
+{
+	# Prints any properly-formated function inside this script as a human-friendly coloured list
+	# Where $1 shall be the number of a step or the full name of the function
+	local descr=$(sed -r -n "/^(preparation_step_)?$1 ?\(\)[[:space:]]*$/,/^}[[:space:]]*$/p" "$selfpath" | \
+		sed -r -e "s/^.*add-apt-repository /\\\\033[0;35m* /" -e 's/^[[:space:]]*#\*[[:space:]]*/sudo apt-get /' \
+		-e 's/\$D_INSTALL/sudo apt-get $apt_opts install/;s/\$F_INSTALL/sudo apt-get -y install/' | \
+		grep -E '^[[:space:]]*(sudo apt-get|install_|###|\\033|description=).*$' | sed -r -e 's/^\t//' \
+		-e 's/^\t(sudo apt-get [^[:space:]]+ )(install|purge)/\1\2/' \
+		-e 's/^[^[:graph:]]?(install_latest_version) (.+) .+? .+$/\1 \2/' -e 's/_VER_/.../g' \
+		-e "/^.*install_by_lang.*$/{s/^[[:space:]]*//;s/ ([-[:alnum:]_]+)/ \1-.../g}" \
+		-e '/^[[:space:]]+/d' -e 's/^description=\"(.*)\"[[:space:]]*((#\?.*)?)$/### \1 \2/' \
+		-e '/^[[:space:]]*###/{x;p;x;}' -e "s/( ['\"]?-[^ ]+|['\"])//g" \
+		-e 's/^(sudo apt-get ([$-][^ ]+ )?)?(install|purge)(_[^ ]*)?(.*)$/\3\5/' \
+		-e 's/^purge (.*)$/\\033[0;31m- \1\\033[0m/g' -e 's/^###(#?)[[:space:]]*/#\1 /' \
+		-e 's/^install (.*)$/\\033[0;32m+ \1\\033[0m/g' -e '/^((\\033|##? ).*|[[:space:]]*)$/!d' \
+		-e 's/\.{3}/\\033[0;36m<?>\\033[0;32m/g' -e 's/^# ([Aa][Nn]?|[Tt][Hh][Ee])[[:space:]]+(.)/# \U\2/')
+	if [[ "$descr" == "" ]]; then printf "Invalid value...\n\n"
+	else
+		if ! has_odd; then descr=$(printf "${descr//\\/\\\\}" | sed -r '/^#.*#\?ODD\?/,/^$/d;/#\?ODD\?/d'); fi
+		if ! is_x64; then descr=$(printf "${descr//\\/\\\\}" | sed -r '/^#.*#\?X64\?/,/^$/d;/#\?ODD\?/d'); fi
+		if [[ "$1" =~ ^[[:digit:]]{,2}$ ]]; then local step_="step "; fi	
+		printf "Effects of ${0##*/}, \033[1m$step_${1//_/ }\033[0m\n"
+		if [[ $(printf "${descr/%/%%}" | grep -Ec '^# ') -gt 0 ]]; then
+			printf "(installed and purged packages in colours preceded by description):\n"
+			fi
+		printf "${descr//#\????\?}\n\n"; fi
+}
+
+list_all_steps ()
+{
+	# Prints all properly-formated "main steps" of this script as a human-friendly list
+	local descr=$(sed -r -n '/^# MAIN STEPS DEFINITIONS BELOW:$/,/^# -{80}$/p' "$selfpath" | \
+		grep -E '^[[:space:]]*(.*_step_[[:digit:]]+[\t ]+\(\)[[:space:]]*|####?.*|description=.*)$' | \
+		sed -r -e 's/^[^[:graph:]]+//' -e 's/^description=\"(.*)\"[\t ]*(((#[Tt]ODO|#\?).*)?)$/### \1 \2/' \
+		-e '/\(\)[^[:graph:]]*$/{x;p;x;}' -e 's/^####[\t ]*/> /' -e 's/(#[Tt]ODO.*)$/\\033[3;33m\1\\033[0m/' \
+		-e 's/^(.*_step|action)_([[:digit:]])[[:space:]]+\(\)/\\033[1;37mSTEP 0\2 -----------\\033[0m/' \
+		-e 's/^(.*_step|action)_([[:digit:]]{2})[[:space:]]+\(\)/\\033[1;37mSTEP \2 -----------\\033[0m/' \
+		-e 's/^###[[:space:]]*((purge|remove).*)/# \1/' -e 's/^###[[:space:]]*/# (install) /')
+	if ! has_odd; then descr=$(printf "${descr//\\/\\\\}" | sed '/#\?ODD[[:space:]]*$/d'); fi
+	if ! is_x64; then descr=$(printf "${descr//\\/\\\\}" | sed '/#\?X64[[:space:]]*$/d'); fi	
+	printf "${descr// #\????\?}\n"
+}
+
+todos ()
+{
+	#### Prints all properly-formated "TODO"s of this script as a human-friendly list
+	#### The "TODO"s marks lines or areas with something still to be (properly?) done
+	local descr=$(grep -En '# ?[Tt]ODO' "$selfpath" | sed -r -e 's/\t/ /g;s/^([[:digit:]]{3}:)/0\1/' \
+		-e "s/^([[:digit:]]{2}:)/00\1/;s/%/%%/g;s/^(.{$((termwidth - 4))}).{4,}$/\1.../;s/\\\\/\\\\\\\\/g" \
+		-e 's/(# ?[Tt]ODO)/\\033[1;33m\1\\033[0m/g;s/^([[:digit:]]+):/\\033[2m\1\\033[0m| /')
+	local total=$(printf "$descr" | wc -l)
+	if [[ $(grep -Ec '# ?[Tt]ODO' "$selfpath") -eq 0 ]]; then
+		printf "\n\033[3;36mThis script has no \033[1;3;7;33mTODO\033[0;0;3;36ms by now...\033[0m\n"
+	else printf "\n$descr\n\033[1mLINE\033[0m| ---------------------------- ---- --- -- -\n\nTotal: $total\n"; fi
+}
+
+installation_dialog () #
+{
+	# Asks or announces the installation of something, then proceedes
+	if [[ ( "$apt_opts" == *-y* ) || ( "$1" == message-only ) ]]; then
+		local capitalized=$(echo "$2" | sed -r -e 's/^[Aa][Nn]?[\t ]+//' -e 's/^([[:lower:]])/\U\1/')
+		printf "\n$capitalized to be installed...\n\n"
+		if [[ ${#2} -gt 60 ]]; then sleep 6; elif [[ ${#2} -gt 40 ]]; then sleep 5;
+		elif [[ ${#2} -gt 20 ]]; then sleep 4; else sleep 3; fi
+		return 0
+	else
+		local lowercased=$(echo "$2" | sed -r -e 's/^([[:upper:]][[:lower:][:digit:]]*[\t ])/\L\1/g' -e 's/^ //')
+		printf "\n"
+		if [[ "$1" == "default-yes" ]]; then
+			read -p "Install $lowercased? [Y/n] " buffer; printf "\n"
+			if [[ "$buffer" != [Nn]* ]]; then return 0; else printf "\033[3mNo actions...\033[0m\n"; return 1; fi
+		elif [[ "$1" == "default-no" ]]; then
+			read -p "Install $lowercased? [y/N] " buffer; printf "\n"
+			if [[ "$buffer" != [Yy]* ]]; then printf "\033[3mNo actions...\033[0m\n"; return 1; else return 0; fi
+			fi
+		fi
+}
+
+install_latest_version () #
+{
+	# Takes $3 as the latest version to be considered as possible, then decrements it 'till the version
+	# number represents an existing version of the package. $4, if specified, is the complete name of
+	# the program. $2 is the name of the program, $1 is the exact package name, where _VER_ shall be replaced
+	# by the version number
+
+	local pkgnames="$1"
+	local name="$2"
+	if [[ "$3" == *\! ]]; then ver_val="${3%\!}"; ignore_old=true; else local ver_val="$3"; fi
+	local ver="${ver_val%%.*}"
+	if [[ "$3" == *.* ]]; then local minver="${ver_val#*.}"; local minorlen="${#minver}"; else minver=""; fi
+	if [[ "$4" != "" ]]; then local fullname="$4"; else local fullname="$name"; fi
+	printf "Looking for the latest version of $name...\n"
+	for i in `seq $ver -1 0`; do printf "."
+		if [[ "$minver" != "" ]]; then
+			for j in `seq $minver -1 0`; do printf "."
+				sudo apt-get -s -y install ${pkgnames//_VER_/${i}.${j}} &> /dev/null
+				if [[ $? -eq 0 ]]; then ver="$i"; minver=".$j"; break 2
+				elif [[ $j -eq 0 ]]; then 
+					sudo apt-get -s -y install ${pkgnames//_VER_/${ver}} &> /dev/null
+					if [[ $? -eq 0 ]]; then minver=""; break 2; fi
+					fi
+				done
+			if [[ $minorlen -ge 2 ]]; then minver=100; else minver=10; fi
+		else
+			sudo apt-get -s -y install ${pkgnames//_VER_/${i}} &> /dev/null
+			if [[ $? -eq 0 ]]; then ver="$i"; break; fi
+			fi
+		done; printf "\n"
+	ver="$ver$minver"
+	if sudo apt-get -s -y install ${pkgnames//_VER_/${ver}} &> /dev/null; then
+		if [[ "$ignore_old" != true ]]; then buffer="NO"
+		else read -p "Purge versions of $fullname prior to $ver? [Y/n] " buffer; fi
+		if [[ "$buffer" != [Nn]* ]]; then
+			for i in `seq $((ver - 1)) -1 0`; do printf "."
+				if [[ "$3" == *.* ]]; then sudo apt-get -y purge ${pkgnames//_VER_/${i}\*}
+				else sudo apt-get -y purge ${pkgnames//_VER_/${i}}; fi
+				done; printf "\n"
+			fi
+		$D_INSTALL ${pkgnames//_VER_/${ver}}
+	else 
+		$D_INSTALL $(printf "$pkgnames " | sed -r 's/[-_.]*_VER_//g;')
+		fi
+	install_latest_version_ver="$ver"
+}
+
+install_by_language () #
+{
+	# For a given software which appears in packages like "package-en-us", "package-ja" and similar,
+	# $1 shall be something like "package" without language codes nor connecting hyphens
+	# Based on the content of $targ_langs (list of languages not affected by localepurge) it tries to install
+	# the proper languages (the proper packages) of the software
+	# If $2 is specified, it will be treated as a second option software, meaning when the name contained in
+	# $1 has no matches for the proper languages, it will try to install this second option for the proper
+	# languages (example: $targ_lang contains "en-us" and "de-ch", if no "$1-de-ch" nor "$1-de" packages were
+	# found, it will try to install "$2-de-ch" or "$2-de")
+
+	if [[ $2 == "" ]]; then
+		while read buffer; do
+			$D_INSTALL $1-$buffer
+			if [[ $? -gt 1 ]]; then $D_INSTALL $1-$buffer.; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $1-${buffer:0:2}; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $1-${buffer:0:2}.; fi
+			done <<< "$targ_langs"
+	else
+		while read buffer; do
+			$D_INSTALL $1-$buffer
+			if [[ $? -gt 1 ]]; then $D_INSTALL $1-$buffer.; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $1-${buffer:0:2}; fi
+			if [[ $? -gt 0 ]]; then $D_INSTALL $2-$buffer; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $2-$buffer.; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $2-${buffer:0:2}; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $1-${buffer:0:2}.; fi
+			if [[ $? -gt 1 ]]; then $D_INSTALL $2-${buffer:0:2}.; fi
+			done <<< "$targ_langs"
+		fi
+}
+
+download_latest_version ()
+{
+	# Takes $3 as the latest version to be considered as possible, then decrements it 'till the version
+	# number represents an existing version of the pointed file; $4 as the destination path of the file;
+	# $2 as the name of the thing to be downloaded and $1 as the file's URL, where _VER_ shall be replaced
+	# by the version number
+
+	local url="$1"
+	local name="$2"
+	local ver_val="$3"
+	local ver="${ver_val%%.*}"
+	if [[ "$3" == *.* ]]; then local minver="${ver_val#*.}"; local minorlen="${#minver}"; else minver=""; fi
+	printf "Looking for the latest version of $name...\n"
+	for i in `seq $ver -1 0`; do printf "."
+		if [[ "$minver" != "" ]]; then
+			for j in `seq $minver -1 0`; do printf "."
+				wget -c --spider ${url//_VER_/${i}.${j}} &> /dev/null
+				if [[ $? -eq 0 ]]; then ver="$i"; minver=".$j"; break 2
+				elif [[ $j -eq 0 ]]; then 
+					wget -c --spider ${url//_VER_/${ver}} &> /dev/null
+					if [[ $? -eq 0 ]]; then minver=""; break 2; fi
+					fi
+				done
+			if [[ $minorlen -ge 2 ]]; then minver=100; else minver=10; fi
+		else
+			wget -c --spider ${url//_VER_/${i}} &> /dev/null
+			if [[ $? -eq 0 ]]; then ver="$i"; break; fi
+			fi
+		done; printf "\n"
+	ver="$ver$minver"
+	if wget -c --spider ${url//_VER_/${ver}} &> /dev/null; then
+		wget -c -S -O "$4" "${url//_VER/${ver}}"
+	else 
+		wget -c -S -O "$4" $(printf "$pkgnames " | sed -r 's/[-_.]*_VER_//g;')
+		fi
+	download_latest_version_ver="$ver"
+}
+
+update ()
+{
+	needs_root_permissions yes
+
+	printf "\n"
+
+	#### Updates apt packages list (if full-updating)
+	if [[ "$*" =~ ^(.* )?packages-list( .*)?$ ]]; then sudo apt-get update; fi
+
+	#### Upgrades packages for which new versions exist, then exits if relevant\n   changes seem to have happened (if full-updating)
+	local start_time=$(date +%s)
+	if [[ "$*" =~ ^(.* )?upgrade( .*)?$ ]]; then sudo apt-get upgrade; fi
+	local ellapsed_time=$(expr $(date +%s) - $start_time)
+	#### Updates 'apt-file' cache (if full-updating), 'debtags' and 'apt-xapian-index'
+	if hash apt-file &> /dev/null && [[ "$*" =~ ^(.* )?apt-file( .*)?$ ]]; then sudo apt-file update; fi
+	if hash debtags &> /dev/null; then sudo debtags update; fi
+	if hash update-apt-xapian-index &> /dev/null; then
+		if [[ "$*" =~ ^(.* )?xapian-index-forced( .*)?$ ]]; then update-apt-xapian-index -vf
+		else update-apt-xapian-index -u; fi
+		fi
+	if [[ $ellapsed_time -gt 12 ]]; then
+		if ! [[ "$*" =~ ^(.* )?alone( .*)?$ ]]; then
+			printf "Packages seem to have been upgraded...\nYou may want to run '$@' again\n"
+			fi
+		exit
+		fi
+}
+
+full_update ()
+{
+	# Just to make possible to call a "Full Update" from the command line
+	#### A more complete version of \033[3mupdate\033[0m (see it for more information)
+	printf "\n"
+	update packages-list upgrade apt-file xapian-index-forced
+}
+
+cleanse ()
+{
+	needs_root_permissions yes
+
+	printf "\n"
+
+	#### Runs some 'apt-get' cleanup and error-fixing actions
+	sudo apt-get -f install
+	sudo apt-get -f remove --purge
+	sudo dpkg --configure -a
+	sudo apt-get -y autoremove
+	sudo apt-get clean
+
+	#### Quits Nautilus and cleans the thumbnails cache
+	nautilus -q
+	rm -fr "$HOME/.cache/thumbnails/"*/*
+
+	#### Cleans tmp files at /tmp
+	rm -f /tmp/tmp.*
+
+	#### Cleans apt-file cache, if requested to
+	if hash apt-file &> /dev/null && [[ "$*" =~ ^(.* )?apt-file( .*)?$ ]]; then
+		unsudo apt-file purge
+		sudo apt-file purge
+		fi
+
+	#### Runs 'sudo apt-get purge ...' for every orphaned package detected by 'deborphan'
+	if hash deborphan; then
+		local orphans_list=$(deborphan)
+		local orphans_count=$(printf "$orphans_list" | wc -l)
+		for i in `seq 1 1 $orphans_count`; do
+			if ! sudo apt-get $apt_opts purge $(echo "$orphans_list" | sed $i'q;d'); then 
+				printf "\n"; break; fi
+			done
+		fi
+
+	#### Runs 'localepurge', in case it has not been configured to use 'dpkg'.
+	if hash localepurge &> /dev/null; then sudo localepurge -v; fi
+}
+
+typical_beginning ()
+{
+	#### Do some checks before starting a typical step
+	if [[ "$*" == *[[:space:]]no-root* ]]; then needs_root_permissions no
+	else needs_root_permissions yes; fi
+	if [[ "$*" != *[[:space:]]offline* ]]; then needs_internet_connection yes; fi
+
+	printf "\n"
+	sudo dpkg --configure -a
+	sudo apt-get -f install
+	sudo apt-get -f remove --purge
+
+	nautilus -q &> /dev/null
+}
+
+typical_ending ()
+{
+	#### Calls cleanse and update for a typical step ending
+	printf "\nFinal operations will now take place...\n\n"
+	sleep 3
+
+	update_args=$(echo " $*" | sed -r -e 's/[[:space:]]update:([^[:space:]]+)/ #\1/g;s/[^[:graph:]]+$//' \
+			-e 's/[\t ]+[^#[:space:]][^[:space:]]*//g;s/#//g;s/^[^[:graph:]]+//')
+
+	if [[ "$update_args" =~ ^(.* )?apt-file( .*)?$ ]]; then cleanse apt-file
+	else cleanse; fi
+	update alone upgrade $update_args
+
+	#### Suggests (and proceeds with, in case) a sytem reboot
+	if ! [[ "$*" =~ ^(.* )?avoid-rebooting( .*)?$ ]]; then
+		printf "\nIt would be better to reboot, now... just in case...\n"
+		read -p "Reboot after exiting? [Y/n] " buffer
+		if [[ "$buffer" != [Nn]* ]]; then 
+			printf "\n"
+			for i in {10..1..-1}; do 
+				printf "\rSystem will reboot in $i seconds... "; sleep 1
+				done
+			(sleep 3; unsudo shutdown -r now &> /dev/null) &
+			printf "\n"
+			fi
+		fi
+}
+
+set_wine_font_smoothing ()
+{
+	WINE=${WINE:-wine}
+	if ! hash $WINE &> /dev/null; then return 1; fi
+
+	buffer=`mktemp` || return 1
+	$DIALOG --menu "Please select font smoothing mode for wine programs:" 13 51 4 \
+		1 "Smoothing disabled" 2 "Grayscale smoothing" \
+		3 "Subpixel smoothing (ClearType) RGB" \
+		4 "Subpixel smoothing (ClearType) BGR" 2> $buffer
+	if [ $? != 0 ]; then rm -f $buffer; return 1; fi
+	ANSWER=`cat $buffer`
+
+	# MODE: 0 = disabled, 2 = enabled; TYPE: 1 = regular, 2 = subpixel; ORIENTATION: 0 = BGR, 1 = RGB
+	if   [[ "$ANSWER" -eq 1 ]]; then MODE=0; TYPE=0; ORIENTATION=1
+	elif [[ "$ANSWER" -eq 2 ]]; then MODE=2; TYPE=1; ORIENTATION=1
+	elif [[ "$ANSWER" -eq 3 ]]; then MODE=2; TYPE=2; ORIENTATION=1
+	elif [[ "$ANSWER" -eq 4 ]]; then MODE=2; TYPE=2; ORIENTATION=0
+	else rm -f $buffer ; printf "Unexpected option '$ANSWER'\n" ; return 1; fi
+
+	printf "REGEDIT4\n\n[HKEY_CURRENT_USER\Control Panel\Desktop]\n\"FontSmoothing\"=" > $buffer
+	printf "\"$MODE\"\n\"FontSmoothingOrientation\"=dword:0000000$ORIENTATION\n" >> $buffer
+	printf "\"FontSmoothingType\"=dword:0000000$TYPE\n\"FontSmoothingGamma\"=dword:00000578" >> $buffer
+	printf "\nUpdating configuration...\n\033[2m"; tail -n5 "$buffer"; printf "\033[0m\n"
+	unsudo $WINE regedit $buffer 2> /dev/null
+	rm -f $buffer &> /dev/null
+}
+
+add_keys_and_repositories ()
+{
+	typical_beginning
+	
+	printf "\n"
+
+	#### Enable Ubuntu partners reporitory
+	sudo sed -i -r 's/^#+[[:space:]]*(deb[[:space:]]+.*[[:space:]]+partner)[[:space:]]*$/\1/' /etc/apt/sources.list
+
+	#### Add relevant repositories if not yet added
+	sudo find /etc/apt/ -type f -iname '*.list' -or -iname '*.list.save' -delete
+	if ! ls /etc/apt/sources.list.d/intellinuxgraphics*.list &> /dev/null; then
+		# For packages related to Intel graphics (including 'intel-linux-graphics-installer')
+		sudo sed -i -r '/download\.01\.org/d' /etc/apt/sources.list
+		buffer="deb https://download.01.org/gfx/ubuntu/$ubu_ver/main $ubu_name main #Intel Graphics drivers"
+		buffer2='/etc/apt/sources.list.d/intellinuxgraphics.list'
+		if is_intel && [[ "${ubu_ver%%.*}" -gt 14 ]]; then
+			suwrite "$buffer" "$buffer2"
+			suwrite "$buffer" "$buffer2.save"
+			fi
+		fi
+	if ! ls /etc/apt/sources.list.d/webupd8team-java*.list &> /dev/null; then
+		# For the latest version of Oracle Java and related packages
+		sudo add-apt-repository ppa:webupd8/java -y; fi
+	if ! ls /etc/apt/sources.list.d/ubuntu-wine-ppa*.list &> /dev/null; then
+		# For 'wine' (MS Windows compatibility layer) and related packages
+		sudo add-apt-repository ppa:ubuntu-wine/ppa -y; fi
+	#TODO:
+	#if ! ls /etc/apt/sources.list.d/videolan-stable-daily*.list &> /dev/null; then
+	#	#
+	#	sudo add-apt-repository ppa:videolan/stable-daily -y; fi
+	#if ! ls /etc/apt/sources.list.d/strukturag-libde265*.list &> /dev/null; then
+	#	# For 'libde265' (HEVC/H.265 decoding) and related packages
+	#	if [[ "${ubu_ver%%.*}" -lt 16 ]]; then sudo add-apt-repository ppa:strukturag/libde265 -y; fi; fi
+	if ! ls /etc/apt/sources.list.d/pipelight-stable*.list &> /dev/null; then
+		# For 'pipelight-multi' and 'wine-browser-installer'
+		sudo add-apt-repository ppa:pipelight/stable -y; fi
+	if ! ls /etc/apt/sources.list.d/pipelight-stable*.list &> /dev/null; then
+		# For 'virtualbox' (Orable VM VirtualBox)
+		sudo sed -i -r '/^deb[[:space:]]+http:..download\.virtualbox\.org.*/d' /etc/apt/sources.list
+		buffer="deb http://download.virtualbox.org/virtualbox/debian $ubu_name contrib #Oracle VM VirtualBox"
+		suwrite "$buffer" '/etc/apt/sources.list.d/virtualbox.list'
+		fi
+	if ! ls /etc/apt/sources.list.d/leolik-leolik*.list &> /dev/null; then
+		# For 'notify-osd' (on-screen messages daemon)
+		sudo add-apt-repository ppa:leolik/leolik -y; fi
+	if ! ls /etc/apt/sources.list.d/mc3man-ubuntu-$ubu_name-media*.list &> /dev/null; then
+		# For non-essential multimedia packages, like 'monkeys-audio'
+		sudo add-apt-repository ppa:mc3man/$ubu_name-media -y; fi
+	if ! ls /etc/apt/sources.list.d/noobslab-apps*.list &> /dev/null; then
+		# For multiple interesting packages (including 'ppsspp')
+		sudo add-apt-repository ppa:noobslab/apps -y; fi
+	if ! ls /etc/apt/sources.list.d/nilarimogard-webupd8*.list &> /dev/null; then
+		# For multiple interesting packages (including 'syspeek' and 'notifyosdconfig')
+		sudo add-apt-repository ppa:nilarimogard/webupd8 -y; fi
+	if ! ls /etc/apt/sources.list.d/atareao-atareao*.list &> /dev/null; then
+		# For multiple interesting packages (including 'my-weather-indicator')
+		sudo add-apt-repository ppa:atareao/atareao -y; fi
+	if ! ls /etc/apt/sources.list.d/eugenesan-ppa*.list &> /dev/null; then
+		# For multiple interesting packages (including 'i7z' and 'bitcoin-qt')
+		sudo add-apt-repository ppa:eugenesan/ppa -y; fi
+	if ! ls /etc/apt/sources.list.d/noobslab-themes*.list &> /dev/null; then
+		# For multiple themes for GTK/Gnome/Ubuntu
+		sudo add-apt-repository ppa:noobslab/themes -y; fi
+	if ! ls /etc/apt/sources.list.d/noobslab-icons*.list &> /dev/null; then
+		# For multiple themes for GTK/Gnome/Ubuntu
+		sudo add-apt-repository ppa:noobslab/icons -y; fi
+	if ! ls /etc/apt/sources.list.d/ian-berke-ppa-drawers*.list &> /dev/null; then
+		# For 'drawers' (expanding Unity launcher)
+		sudo add-apt-repository ppa:ian-berke/ppa-drawers -y; fi
+	if ! [[ -f /etc/apt/sources.list.d/resilio-sync.list ]]; then
+		# For Resilio Sync (
+		sudo sed -i '/resilio\.com/d' /etc/apt/sources.list
+		buffer='deb http://linux-packages.resilio.com/resilio-sync/deb resilio-sync non-free'
+		suwrite "$buffer #Resilio Sync" '/etc/apt/sources.list.d/resilio-sync.list'; fi
+	if ! ls /etc/apt/sources.list.d/musicbrainz-developers-stable*.list &> /dev/null; then
+		# For packages related to MusicBrainz Picard and 'picard' itself
+		sudo add-apt-repository ppa:musicbrainz-developers/stable -y; fi
+	if ! ls /etc/apt/sources.list.d/peterlevi-ppa*.list &> /dev/null; then
+		# For 'variety' (desktop embellishment indicator)
+		sudo add-apt-repository ppa:peterlevi/ppa -y; fi
+	if [[ "$ubu_ver" =~ ^1[46]\.04$ ]]; then
+		# For 'mkvtoolnix' and 'mkvtoolnix-gui'
+		sudo sed -i -r '/(mkvtoolnix|bunkus)/d' /etc/apt/sources.list
+		suwrite "\n\ndeb http://mkvtoolnix.download/ubuntu/$ubu_name/ ./" /etc/apt/sources.list append
+		suwrite "\ndeb-src http://mkvtoolnix.download/ubuntu/$ubu_name/ ./" /etc/apt/sources.list append
+		fi
+
+	#### Add needed keys
+	# For packages related to Intel graphics
+	 if is_intel; then
+		 wget --no-check-certificate -q -O - https://download.01.org/gfx/RPM-GPG-KEY-ilg-3 | \
+		 sudo apt-key add - ; fi
+	# For 'playonlinux' package
+	 wget -q -O - http://deb.playonlinux.com/public.gpg | \
+	 sudo apt-key add -
+	# For 'virtualbox' and related packages
+	 if [[ "${ubu_ver%%.*}" -ge 16 ]]; then
+		 wget -q -O - https://www.virtualbox.org/download/oracle_vbox_2016.asc | \
+		 sudo apt-key add -
+	 else
+		 wget -q -O - https://www.virtualbox.org/download/oracle_vbox.asc | \
+		 sudo apt-key add - ; fi
+	# For 
+	 wget -q -O - https://linux-packages.resilio.com/resilio-sync/key.asc | \
+	 sudo apt-key add -
+	# For 'mkvtoolnix' and 'mkvtoolnix-gui'
+	 wget -q -O - https://mkvtoolnix.download/gpg-pub-moritzbunkus.txt | \
+	 sudo apt-key add -
+}
+
+bugfixing_step ()
+{
+	#### \033[1mCovered bugs:\033[0m
+
+	#### Backlight intensity value being forgotten after shutdown
+	printf "\n[A] Backlight intensity value being forgotten after shutdown\n"
+	#### Hibernation is not available as a shutdown option
+	printf "[B] Hibernation is not available as a shutdown option\n"
+	#### Fn keys are not working properly
+	printf "[C] Fn keys are not working properly\n" #TODO
+	#### Touchpad 3-fingers tap action (emulating middle-click) not working
+	if laptop-detect; then 
+		printf "[D] Touchpad 3-fingers tap action (emulating middle-click) not working\n"; fi
+	#### Wifi not working after suspending the computer
+	printf "[E] Wifi not working after suspending the computer\n" #TODO
+	#### Virtual keyboard insistently showing up on every startup
+	printf "[F] Virtual keyboard insistently showing up on every startup\n"
+
+	printf "[Q] \033[3mQuit\033[0m\n\n(some effects may be user-specific)\n\n"
+
+	read -p "Enter the letters corresponding to the bugs you want to fix: " buffer
+
+	if [[ "$buffer" == *[QqXx]* ]]; then return 0; fi
+	if [[ "$buffer" == *[Aa]* ]]; then
+		printf "\n\033[1;34mWorkaround for notebooks failing to remember "
+		printf "the backlight value on startup...\033[0m\n\n"
+		if ! dpkg -s xbacklight &> /dev/null; then $F_INSTALL xbacklight; fi
+		add2startup 'xbacklight -set \$\(cat \$HOME\/\.local\/share\/backlight\)'
+		add2shutdown 'echo "($(xbacklight -get)+0.5)/1" | bc > $HOME/.local/share/backlight' 'remember_backlight'
+		printf "Workaround applied\n"
+		read -p "Press any key to continue..." -n 1 -s
+		printf "\n"
+		fi
+	if [[ "$buffer" == *[Bb]* ]]; then
+		printf "\n\033[1;34mFix for hibernation being not available...\033[0m\n\n"
+		buffer2='/etc/polkit-1/localauthority/50-local.d/com.ubuntu.enable-hibernate.pkla'
+		suwrite '[Re-enable hibernate by default in upower]\nIdentity=unix-user:*\n' "$buffer2"
+		suwrite 'Action=org.freedesktop.upower.hibernate\nResultActive=yes\n\n' "$buffer2" append
+		suwrite '[Re-enable hibernate by default in logind]\nIdentity=unix-user:*\n' "$buffer2" append
+		suwrite 'Action=org.freedesktop.login1.hibernate;' "$buffer2" append
+		suwrite 'org.freedesktop.login1.handle-hibernate-key;org.freedesktop.login1;' "$buffer2" append
+		suwrite 'org.freedesktop.login1.hibernate-multiple-sessions;' "$buffer2" append
+		suwrite 'org.freedesktop.login1.hibernate-ignore-inhibit\nResultActive=yes\n' "$buffer2" append
+		printf "A common fix has been applied and the results may take place after rebooting\n"
+		read -p "Press any key to continue..." -n 1 -s
+		printf "\n"
+		fi
+	if [[ "$buffer" == *[Dd]* ]] && laptop-detect; then
+		printf "\n\033[1;34mWorkaround to keep touchpad middle-click emulation working...\033[0m\n\n"
+		printf "A \"Startup Applications Preferences\" window will show up. On it, click \"Add\".\n"
+		printf "Then, the \"Add Startup Program\" window will show up. On it, fill the fields\n"
+		printf "exactly like this (copy only what is between the quotes, but not The quotes):\n\n"
+		printf "    Name: \"Touchpad Middle-click Activation\"\n"
+		printf " Command: \"synclient TapButton3=2 TapButton2=3\"\n Comment: \033[3mempty\033[0m...\n\n"
+		read -p "Press any key to show the referred window..." -n 1 -s
+		printf "\n\n\033[2m[Waiting for the window to be closed]\033[0m\n"
+		gnome-session-properties &> /dev/null
+		unsudo synclient TapButton3=2 TapButton2=3 --mute
+		fi
+	if [[ "$buffer" == *[Ff]* ]]; then
+		printf "\n\033[1;34mFix for virtual keyboard insistently showing up on every startup...\033[0m\n\n"
+		find "/etc/xdg/autostart/" -type f -iname 'onboard*.desktop' -delete &> /dev/null
+		find "$HOME/.config/autostart" -type f -iname 'onboard*.desktop' -delete &> /dev/null
+		fi
+}
+
+primal_step ()
+{
+	#### Looks for some PPAs and packages to confirm the need for the next actions
+	if [[   ( $(dpkg -l | grep virt-what | wc -l) -lt 1 ) &&
+		( $(dpkg -l | grep deborphan | wc -l) -lt 1 ) &&
+		( -d /usr/share/example-content ) &&
+		!( -f "$HOME/Templates/Bash Scripts.sh" ) ]]; then SHALL_CONTINUE=true; fi
+	if ls /etc/apt/sources.list.d/ubuntu-wine-ppa*.list &> /dev/null || [[ "$SHALL_CONTINUE" != true ]]; then
+		return 0
+		fi
+
+	#### Informs about this being the first time it seems to be runned
+	printf "It seems to be the first time you run ${0##*/} on this computer...\n\n"
+
+	#### Let the user cancel this step at own risk
+	printf "First time proceedures will take place...\n"
+	typical_beginning
+	for i in 9 8 7 6 5 4 3 2 1 0 ; do
+		echo -en "\r"
+		read -p "Press any key to cancel... [$i] " -n 1 -t 1 buffer && return 1
+		done
+	printf "\n\n"
+
+	#### Deletes the "Examples' folder and creates some script templates
+	# This is done mainly as a reminder of the fact that this script has been runned before
+	sudo rm -f "$HOME/examples.desktop"
+	sudo rm -fr "/usr/share/example-content"
+	printf '#!/bin/bash\n\n' > "$HOME/Templates/Bash Script.sh"
+	printf '#!/usr/bin/python3\n\n' > "$HOME/Templates/Python Script.sh"
+	sudo chown -R $real_user:$real_user "$HOME/Templates/"
+
+	#### Calls add_keys_and_repositories
+	add_keys_and_repositories
+
+	description="Basic tools to handle packages and reporitories"
+	if installation_dialog message-only "$description"; then
+		$F_INSTALL apt-utils
+		$F_INSTALL deborphan
+		fi
+
+	#### Enable clicking on the launcher icon of the focused window to minimise it
+	unsudo gsettings set org.compiz.unityshell:/org/compiz/profiles/unity/plugins/unityshell/ launcher-minimize-window true
+
+	#### Adjust default zoom level for list and icon view on Nautilus
+	unsudo  gsettings set org.gnome.nautilus.list-view default-zoom-level 'smallest' \\n \
+		gsettings set org.gnome.nautilus.icon-view default-zoom-level 'standard'
+
+	#### Calls update
+	update alone upgrade packages-list apt-file
+
+	description="Tools to detect what the system is running on"
+	if installation_dialog message-only "$description"; then
+		$F_INSTALL virt-what
+		$F_INSTALL laptop-detect
+		fi
+
+	cleanse
+
+	#### Do necessary stuff and then reboot if running inside VirtualBox
+	if [[ $(sudo virt-what) =~ ^.*[Vv]irtual.?[Bb]ox.*$ ]]; then
+		$F_INSTALL virtualbox-guest-utils virtualbox-guest-x1* virtualbox-guest-dkms
+		killall VBoxClient
+		VBoxClient --clipboard ; VBoxClient --draganddrop
+		printf "As it is being runned in a virtual machine, a reboot is needed...\n"
+		printf "You can run it again and continue after rebooting.\n"
+		read -p "Now, close everything and press ENTER... " buffer
+		sudo shutdown -r 1 & sudo killall gnome-terminal nautilus soffice.bin
+		fi
+
+	printf "Primal step successfuly finished!"
+	info_mode=true
+}
+
+# MAIN STEPS DEFINITIONS BELOW:
+
+preparation_step_0 ()
+{
+	typical_beginning
+
+	description="Essential tools"
+	if installation_dialog message-only "$description"; then
+		$F_INSTALL coreutils util-linux binutils findutils file time sudo curl
+		$F_INSTALL lockfile-progs
+		$F_INSTALL cron anacron
+		$F_INSTALL grep sed
+		$F_INSTALL less nano
+		$F_INSTALL wget
+		fi
+
+	description="ISO, ASCII and GNU/Linux references"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL manpages ascii iso-codes
+		fi
+
+	description="Interpreters and basic tools to properly run most scripts"
+	if installation_dialog message-only "$description"; then
+		$F_INSTALL dash mksh bash bash-doc
+		$F_INSTALL gawk gawk-doc mawk
+		$F_INSTALL perl perl-debug perl-depends perl-doc perl-doc-html
+		$F_INSTALL python python-doc python3 python3-doc
+		$F_INSTALL dialog zenity zenity-tools
+		fi
+
+	description="Additional command line tools"
+	if installation_dialog message-only "$description"; then
+		$F_INSTALL at
+		$F_INSTALL moreutils
+		$F_INSTALL ncurses-bin
+		$F_INSTALL rename renameutils
+		$F_INSTALL xml2 bbe pyp
+		$F_INSTALL xclip
+		$F_INSTALL sm
+		$F_INSTALL aria2
+		fi
+
+	description="Oracle Java VM (latest version)"
+	if installation_dialog message-only "$description"; then
+		
+		local ver="15"
+		read -p "Are you interested in a specific Java version? [Y/n] "
+		if [[ "$buffer" != [Nn]* ]]; then 
+			read "Enter the version (commercial version number only): " buffer
+			if [[ "$buffer" =~ ^[[:digit:]]{1,2}$ ]]; then ver="$buffer"; fi
+			fi
+		while ! sudo apt-get -s -y install oracle-java$ver-installer &> /dev/null; do ver=$((ver - 1)); done
+		if [[ ( $ver -le 20 ) || ( $ver -gt 1 ) ]]; then
+			printf "Searching and purging any version of Java other than Oracle Java $ver..."
+			for oldver in `seq $((version - 1)) -1 1`; do printf "."
+				sudo apt-get -qq -y purge oracle-java$oldver-installer \
+					oracle-java$oldver-unlimited-jce-policy \
+					oracle-java$oldver-set-default &> /dev/null
+				done
+			sudo apt-get -y purge default-jdk default-jre openjdk* icedtea*-plugin &> /dev/null
+			printf "\n"
+			$D_INSTALL oracle-java$ver-installer
+			$D_INSTALL oracle-java$ver-unlimited-jce-policy oracle-java$ver-set-default
+			fi
+		#* purge default-jdk default-jre openjdk* icedtea*-plugin
+		#* install oracle-java...-installer
+		#* install oracle-java...-unlimited-jce-policy oracle-java...-set-default
+		fi
+
+	typical_ending update:apt-file
+}
+
+preparation_step_1 ()
+{
+	typical_beginning
+
+	description="A firewall"
+	if installation_dialog message-only "$description"; then
+		$D_INSTALL ufw
+		fi
+
+	### Graphics drivers and tools
+	if is_intel; then
+		description=" Intel graphics drivers and tools"
+		if installation_dialog default-yes "$description"; then
+			$D_INSTALL intel-linux-graphics-installer #TODO: missing
+			$D_INSTALL intel-gpu-tools
+			fi
+		#* install ... \033[3;35m(depends on the hardware)\033[0m
+		fi
+
+	description="System resources control and information tools"
+	if installation_dialog message-only "$description"; then
+		$D_INSTALL procps
+		$D_INSTALL eject
+		$D_INSTALL lshw lsscsi lsof
+		$D_INSTALL htop powertop iotop
+		$D_INSTALL mtr-tiny nethogs
+		$D_INSTALL cpulimit and
+		$D_INSTALL xbacklight
+		$D_INSTALL x11-utils x11-session-utils x11-xkb-utils x11-xserver-utils 
+		$D_INSTALL alsa-utils
+		$D_INSTALL sane-utils
+		fi
+
+	description="Disks and filesystems tools"
+	if installation_dialog message-only "$description"; then
+		$D_INSTALL attr fatattr acl quota quotatool disktype fstransform
+		$D_INSTALL parted gparted gpart
+		$D_INSTALL dmsetup dmraid xfsprogs xfsdump dosfstools jfsutils ntfs-3g
+		$D_INSTALL kpartx kpartx-boot
+		$D_INSTALL reiser4progs reiserfsprogs hfsutils hfsprogs f2fs-tools mtools
+		$D_INSTALL testdisk
+		$D_INSTALL xmount
+		$D_INSTALL gnome-disk-utility
+		$D_INSTALL baobab
+		fi
+
+	description="Tools to handle packages and repositories"
+	if installation_dialog message-only "$description"; then
+		$F_INSTALL apturl
+		$F_INSTALL ppa-purge
+		$F_INSTALL localepurge
+		$F_INSTALL apt-xapian-index
+		update-apt-xapian-index -vf
+		$D_INSTALL apt-file
+		$D_INSTALL apt-show-versions
+		$D_INSTALL debtags
+		$D_INSTALL alien
+		fi
+
+	description="Tools to allow file sharing over network" #TODO: better place? description?
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL samba 
+		$D_INSTALL samba-dsdb-modules samba-vfs-modules
+		$D_INSTALL --install-recommends winbind
+		fi
+
+	description="GUIs for system utilities and settings"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL gksu
+		$F_INSTALL gdebi
+		$D_INSTALL synaptic
+		$D_INSTALL unity-control-center
+		$D_INSTALL gnome-system-monitor
+		$D_INSTALL gnome-system-log
+		if [[ ${ubu_ver%%.*} -ge 16 ]]; then $D_INSTALL systemd-ui; fi
+		#* install systemd-ui
+		$D_INSTALL yelp gman
+		$D_INSTALL bum gufw
+		$D_INSTALL dconf-editor python-compizconfig compizconfig-settings-manager
+		$D_INSTALL font-manager gnome-font-viewer
+		$D_INSTALL gnome-screenshot
+		if [[ -d "$HOME/Pictures" ]]; then
+			buffer="$HOME/Pictures/Screenshots"
+			mkdir "$buffer"
+			unsudo gsettings set org.gnome.gnome-screenshot auto-save-directory "$buffer"
+			fi
+		fi
+
+	typical_ending update:apt-file
+}
+
+preparation_step_2 ()
+{
+	typical_beginning
+
+	description="Archive formats support and an archive manager"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL tar zip unzip rar unrar unace-nonfree xz-utils
+		$D_INSTALL gzip bzip2 lzma cpio
+		$D_INSTALL p7zip p7zip-full p7zip-rar
+		$D_INSTALL lzip lunzip lhasa rzip lrzip
+		$D_INSTALL lbzip2 #TODO test pigz plzip
+		sudo update-alternatives --install /usr/bin/bzip2 bzip2 /usr/bin/lbzip2 20 #TODO: check before
+		$D_INSTALL unar
+		$D_INSTALL arc lzop arj jlha-utils
+		$D_INSTALL zoo ha ncompress
+		$D_INSTALL unmass
+		$D_INSTALL cabextract mscompress
+		$D_INSTALL rpm2cpio
+		$D_INSTALL fastjar
+		$D_INSTALL ppmd
+		$D_INSTALL unp patool
+		$D_INSTALL file-roller
+		buffer='application/zip;application/rar;application/x-rar;application/rar-compressed;'
+		buffer+='application/x-rar-compressed;application/x-alz;application/x-ace;'
+		buffer+='application/x-ace-compressed;application/arc;application/x-arc;'
+		buffer+='application/arj;application/x-arj;application/arj-compressed;application/tarz;'
+		buffer+='application/bzip-compressed;application/bzip2-compressed;application/x-cpio;'
+		buffer+='application/bzip;application/bzip2;application/x-bzip;application/x-bzip2;'
+		buffer+='application/bzip-compressed;application/bzip2-compressed;application/x-cpio;'
+		buffer+='application/x-bzip2-compressed;application/alz;application/tar;application/x-tar;'
+		buffer+='application/xz;application/x-xz;application/x-archive;application/x-compressed;'
+		buffer+='application/x-lzip;application/lzip;application/x-gzip;application/gzip;'
+		buffer+='application/x-7z;application/7z-compressed;application/x-7z-compressed;'
+		buffer+='application/x-tarz;application/compressed-tar;application/x-compressed-tar;'
+		buffer+='application/cpio;application/x-bzip-compressed-tar;application/lzma;'
+		buffer+='application/bzip-compressed-tar;application/x-lzma;application/x-lzma-compressed;'
+		buffer+='application/7z;application/x-arj-compressed;application/x-bzip-compressed;'
+		if [[ $(cat /usr/share/applications/file-roller.desktop | grep -c '^MimeType' ) -lt 1 ]]; then
+			sudo sed -i -r "/^Categories=.*/a MimeType=$buffer" \
+				'/usr/share/applications/file-roller.desktop'
+			fi
+		xdg-mime default 'file-roller.desktop' $(printf "$buffer" | tr ';' ' ')
+		#TODO: rarcrack, MIMEs restantes, tipos restantes (war, cbr...)
+		fi
+
+	description="Disk image formats support, mounting capabilities and tools"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL genisoimage
+		$D_INSTALL bchunk
+		$D_INSTALL fuseiso
+		$D_INSTALL furiusisomount
+		$D_INSTALL grub-imageboot #TODO: grub?
+		fi
+
+	typical_ending
+}
+
+preparation_step_3 ()
+{
+	typical_beginning
+
+	description="A basic text editor"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL gedit
+		$D_INSTALL gedit-plugins
+		if [[ $(cat /usr/share/applications/gedit.desktop | grep -c '^MimeType' ) -lt 1 ]]; then
+			sudo sed -i -r '/^Categories=.*/a MimeType=text\/plain;text\/xml;' \
+				'/usr/share/applications/gedit.desktop'
+			fi
+		set_as_default_app 'gedit.desktop'
+		fi
+
+	description="Basic viewers for documents and ebooks"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL evince
+		$D_INSTALL fbreader
+		set_as_default_app 'evince.desktop' -'image/tiff'
+		xdg-mime default 'FBReader.desktop' 'application/epub+zip' 'application/x-mobipocket-ebook'
+		fi
+
+	description="A basic image viewer"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL eog
+		$D_INSTALL eog-plugins
+		set_as_default_app 'eog.desktop'
+		unsudo  gsettings set org.gnome.eog.ui statusbar true \\n \
+			gsettings set org.gnome.eog.view use-background-color true \\n \
+			gsettings set org.gnome.eog.view background-color "'rgb(255,255,255)'" \\n \
+			gsettings set org.gnome.eog.view transparency background \\n \
+			gsettings set org.gnome.eog.fullscreen upscale false \\n \
+			gsettings set org.gnome.eog.view scroll-wheel-zoom true \\n \
+			gsettings set org.gnome.eog.view interpolate true \\n \
+			gsettings set org.gnome.eog.view extrapolate true
+		fi
+
+	description="A basic drawing and paiting tool"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL gnome-paint
+		fi
+
+	description="CD/DVD burning tools" #?ODD?
+	if has_odd && installation_dialog default-yes "$description"; then
+		$D_INSTALL wodim cdrkit-doc growisofs
+		$D_INSTALL --install-recommends brasero
+		$D_INSTALL vcdimager cdrdao dvd+rw-tools
+		fi
+
+	description="An office suite"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL libreoffice libreoffice-avmedia-backend-gstreamer libreoffice-base-drivers
+		$D_INSTALL libreoffice-ogltrans libreoffice-pdfimport libreoffice-wiki-publisher
+		if apt-cache show libreoffice-gtk3 &> /dev/null; then 
+			if $D_INSTALL libreoffice-gtk3; then sudo apt-get purge libreoffice-gtk libreoffice-gnome; fi
+			fi
+		#* install \033[3mlibreoffice-gtk3\033[0m
+		install_by_language libreoffice-help
+		install_by_language libreoffice-l10n
+		set_as_default_app 'libreoffise-calc.desktop'
+		set_as_default_app 'libreoffice-base.desktop'
+		set_as_default_app 'libreoffice-draw.desktop'
+		set_as_default_app 'libreoffice-math.desktop'
+		set_as_default_app 'libreoffice-impress.desktop'
+		set_as_default_app 'libreoffice-writer.desktop' -'text/plain'
+		fi
+
+	description="Dictionaries and related tools to be used by other programs"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL hunspell hunspell-tools
+		sudo apt-get -y purge myspell-.
+		install_by_language "--install-suggests hunspell" "--install-suggests myspell"
+		$D_INSTALL aspell
+		install_by_language aspell
+		$D_INSTALL enchant
+		install_by_language hyphen
+		install_by_language mythes
+		fi
+
+	description="A graphical diff viewer and merge tool"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL meld
+		fi
+
+	description="A stopwatch, timer and world clock tool"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-clocks
+		fi
+
+	typical_ending
+}
+
+preparation_step_4 ()
+{
+	typical_beginning
+
+	description="Windows/DOS emulation and compatibility tools"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL gnome-exe-thumbnailer
+		$D_INSTALL dosbox
+		install_latest_version wine_VER_ "Wine" "2.5"
+		$D_INSTALL wine-browser-installer
+		$D_INSTALL q4wine
+		$D_INSTALL winetricks
+		$D_INSTALL playonlinux
+		set_as_default_app 'wine.desktop'
+		#TODO: font-smoothing
+		fi
+
+	description="A virtual machine monitor (VirtualBox)"
+	if installation_dialog default-no "$description"; then
+		read -p "Do you preffer the VirtualBox version from Oracle's repository? [y/N] " buffer
+		printf "...\n"
+		if [[ "$buffer" != [Yy]* ]]; then $D_INSTALL virtualbox
+		else install_latest_version virtualbox-_VER_ "VirtualBox" "7.1" "Oracle VM VirtualBox"; fi
+		#* install virtualbox | virtualbox-...
+		$D_INSTALL virtualbox-qt
+		$D_INSTALL virtualbox-guest-additions-iso
+		set_as_default_app 'virtualbox.desktop'
+		fi
+
+	typical_ending
+}
+
+preparation_step_5 ()
+{
+	typical_beginning
+
+	description="Extra image formats support and image tools"
+	if installation_dialog message-only "$description"; then
+		$D_INSTALL --install-recommends imagemagick webp
+		$D_INSTALL imagemagick-doc	
+		buffer=$(find /usr/share/applications/display-im?.desktop | tail -n1)
+		set_as_default_app "${buffer##*/}"
+		set_as_default_app 'eog.desktop' # to keep eog's "defaultness" for what it cans
+		$D_INSTALL python-pythonmagick perlmagick
+		$D_INSTALL 2webp ufraw netpbm autotrace hp2xx html2ps libwmf-bin libwpg-tools transfig
+		$D_INSTALL imageinfo
+		$D_INSTALL aaphoto jpegpixi
+		$D_INSTALL jpegoptim #TODO: compare: pngcrush vs. pngquant vs. pngnq vs. optipng
+		$D_INSTALL jpeginfo #TODO: compare exiftran vs. renrot
+		$D_INSTALL jpegjudge
+		#TODO: icoutils?
+		fi
+
+	description="Audio/video formats support (codecs) and tools"
+	if installation_dialog message-only "$description"; then
+		#TODO: missing
+		$D_INSTALL ubuntu-restricted-extras
+		install_latest_version "libde265-_VER_" "libde265" "10!"
+		$D_INSTALL faad faac lame flac
+		$D_INSTALL vorbis-tools monkeys-audio wavpack ttaenc
+		$D_INSTALL opus-tools speex speex-doc
+		$D_INSTALL musepack-tools twolame
+		$D_INSTALL mp4v2-utils x264 x264-doc x265 x265-doc
+		$D_INSTALL quicktime-utils
+		fi
+
+	$D_INSTALL firmware-crystalhd gstreamer1.0-libde265 gstreamer0.10-libde265 #TODO
+
+	description="Support for BluRays and encrypted media DVDs"
+	if has_odd && installation_dialog default-yes "$description"; then
+		install_latest_version libbluray_VER_ libbluray 9
+		install_latest_version libdvdread_VER_ libdvdread 9
+		install_latest_version libdvdnav_VER_ libdvdnav 9
+		sudo /usr/share/doc/libdvdread*/install-css.sh
+		fi
+
+	description="Tool to display informations and metadata from media files"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL mediainfo mediainfo-gui
+		fi
+
+	description="VLC (media player)"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL vlc
+		$D_INSTALL vlc-plugin-samba
+		$D_INSTALL vlc-plugin-notify vlc-plugin-pulse vlc-plugin-fluidsynth
+		$D_INSTALL vlc-plugin-vlsub vlc-plugin-svg
+		$D_INSTALL vlc-plugin-libde265 #TODO: really?
+		fi
+
+	typical_ending
+}
+
+preparation_step_6 ()
+{
+	typical_beginning
+
+	description="Mozilla Firefox (web browser)"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL firefox
+		killall firefox
+		set_as_default_app 'firefox.desktop' -'image/*' -'video/*' -'text/xml'
+		firefox --setDefaultBrowser
+		buffer="\"browser.startup.homepage\", \"about:home\""
+		find "$HOME/.mozilla/firefox/" -type f -iname 'prefs.js' -exec sed -i '/browser\.startup\.homepage/d' \
+			-exec sed -i -r "/browser\.slowStartup\.samples/a finduser_pref($buffer);" "{}" \;
+		read -p "Do you want to check the URLs of some suggested add-ons? [y/N] " buffer
+		if [[ "$buffer" == [Yy]* ]]; then
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/about-pages-list\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/cacheviewer2\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/cliget\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/copy-urls-expert\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/flagfox\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/google-search-link-fix\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/private-tab\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/resurrect-pages-isup-edition\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/session-manager\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/tab-counter\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/unityfox\n' #TODO
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/auto-unload-tab\n'
+			printf 'https://addons.mozilla.org/en-US/firefox/addon/video-downloadhelper'
+			fi
+		fi
+
+	description="Google Chrome (web browser)" #?X64?
+	if is_x64 && installation_dialog default-no "$description"; then
+		if hash chromium-browser &> /dev/null; then
+			read -p "Do you want to remove Chromium before installing Chrome? [y/N] " buffer
+			if [[ "$buffer" == [Yy]* ]]; then sudo apt-get -y purge chromium*; fi
+			fi
+		wdebi 'https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb' "$HOME/chrome-amd64.deb" #TODO: ppa?
+		#* purge \033[3;31mchromium-browser\033[0;31m \033[0;3;2m(if explicitly wanted)\033[0;32m
+		#* install google-chrome-stable
+		read -p "Do you want to see the pages of some suggested extensions? [y/N] " buffer
+		if [[ "$buffer" == [Yy]* ]]; then
+			buffer2='https://chrome.google.com/webstore/detail'
+			google-chrome "$buffer2/copy-all-urls/djdmadneanknadilpjiknlnanaolmbfk"
+			google-chrome "$buffer2/data-saver/pfmgfdlgomnbgkofeojodiodmgpgmkac"
+			google-chrome "$buffer2/go-back-with-backspace/eekailopagacbcdloonjhbiecobagjci"
+			google-chrome "$buffer2/the-great-suspender/klbibkeccnjlkjkiokjodocebajanakg"
+			google-chrome "$buffer2/righttocopy/plmcimdddlobkphnofejmeidjblideca"
+			google-chrome "$buffer2/session-buddy/edacconmaakjimmfgnblocblbcdcpbko"
+			fi
+		fi
+
+	description="Media plugins for web browsers"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL totem-mozilla
+		$D_INSTALL browser-plugin-vlc
+		sudo apt-get -y purge flashplugin-nonfree-pulse adobe-flash-properties-kde
+		sudo apt-get -y purge freshplayerplugin pepflashplugin-installer chromiumflashplugin
+		$D_INSTALL adobe-flashplugin adobe-flash-properties-gtk
+		if hash chromium-browser &> /dev/null; then
+			$D_INSTALL chromium-codecs-ffmpeg-extra
+			$D_INSTALL pepperflashplugin-nonfree
+			sudo update-pepperflashplugin-nonfree --install
+			fi
+		#* install chromium-codecs-ffmpeg-extra \033[0;3;2m(if chromium-browser is installed)\033[0;32m
+		#* install pepperflashplugin-nonfree \033[0;3;2m(if chromium-browser is installed)\033[0;32m
+		$D_INSTALL --install-recommends pipelight-multi
+		sudo pipelight-plugin --accept --disable-all
+		sudo pipelight-plugin --accept --enable silverlight
+		sudo pipelight-plugin --accept --enable widevine
+		sudo pipelight-plugin --update
+		fi
+
+	description="Instant messengers (Skype, Telegram)" #TODO: better place?
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL skype
+		wuntar "https://tdesktop.com/linux" "$HOME/Downloads/Telegram.tar.gz" \
+			"$HOME/.local/share/telegram" "Telegram messenger"
+		if [[ $? -eq 0 ]]; then
+			"$HOME/.local/share/telegram/Telegram" &
+			fi
+		#* install telegram
+		fi
+
+	typical_ending
+}
+
+preparation_step_7 ()
+{
+	typical_beginning
+
+	description="SysPeek (indicator to show the usage of system resources)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL syspeek
+		if [[ $? -eq 0 ]]; then &> /dev/null
+			killall syspeek &> /dev/null
+			unsudo syspeek \& &> /dev/null
+			fi
+		fi
+
+	description="An indicator to switch between lists of Unity launcher icons"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL launcher-list-indicator
+		if [[ $? -eq 0 ]]; then &> /dev/null
+			killall launcher-list-indicator &> /dev/null
+			unsudo launcher-list-indicator \& &> /dev/null
+			
+			fi
+		fi
+
+	description="An indicator to manage desktop embelishment and wallpapers"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL variety
+		if [[ $? -eq 0 ]]; then &> /dev/null
+			killall launcher-list-indicator &> /dev/null
+			unsudo launcher-list-indicator \& &> /dev/null
+
+			fi
+		fi
+
+	description="A customizable notifications daemon"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL notify-osd notifyosdconfig
+		fi
+
+	description="Extra thumbnailers"
+	if installation_dialog default-yes "$description"; then
+		# ===> for OpenOffice.org documents
+		$D_INSTALL ooo-thumbnailer
+		if [[ $? -eq 0 ]]; then 
+			buffer="application/vnd.oasis.opendocument"
+			add_thumbnailer ooo '/usr/bin/ooo-thumbnailer %%i %%o %%s' \
+				"$buffer.graphics;$buffer.presentation;$buffer.spreadsheet;$buffer.text"
+			fi
+		# ===> for Raw images
+		$D_INSTALL gnome-raw-thumbnailer
+		# ===> for ePUB books
+		buffer="https://raw.githubusercontent.com/marianosimone/epub-thumbnailer/master/src/epub-thumbnailer.py"
+		sudo wget -c -O /usr/bin/epub-thumbnailer "$buffer"
+		if [[ $? -ne 0 ]]; then sleep 1; fi #TODO: alternative source
+		sudo chmod 755 /usr/bin/epub-thumbnailer
+		add_thumbnailer epub 'python3 /usr/bin/epub-thumbnailer %%i %%o %%s' 'application/epub+zip'
+		#* install \033[3mepub-thumbnailer\033[0m
+		fi
+
+	description="Extra GTK themes"
+	if [[ "${ubu_ver%%.*}" -ge 15 ]] && installation_dialog default-yes "$description"; then
+		local repo_added=false
+		if [[ ( $(date +%s) -le 1496530785 ) && ( "${ubu_ver%%.*}" -ge 15 ) ]]; then
+			# For 'arc-theme' (GTK themes)
+			sudo sed -i -r '/download\.opensuse\.org[^[:space:]]+Horst3180/d' /etc/apt/sources.list
+			buffer="http://download.opensuse.org/repositories/home:/Horst3180/xUbuntu_$ubu_ver/ /"
+			suwrite "deb $buffer" '/etc/apt/sources.list.d/arc-theme.list'
+			$buffer='xUbuntu_$ubu_ver/Release.key'
+			wget -q -O - http://download.opensuse.org/repositories/home:/Horst3180/$buffer | \
+				sudo apt-key add -
+			repo_added=true
+			fi
+		#* add-apt-repository http://download.opensuse.org/repositories/home:/Horst3180/xUbuntu
+		# For 'adapta-gtk-theme'
+		if ! ls /etc/apt/sources.list.d/tista-adapta*.list &> /dev/null; then
+			sudo add-apt-repository ppa:tista/adapta -y
+			repo_added=true
+			fi
+		if [[ "$repo_added" == true ]]; then sudo apt-get update; fi
+		$D_INSTALL arc-theme
+		$D_INSTALL adapta-gtk-theme
+		fi
+
+	description="Extra icon themes"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-colors
+		$D_INSTALL elementary-icon-theme
+		local repo_added=false
+		if ! ls /etc/apt/sources.list.d/oranchelo-oranchelo-icon-theme*.list &> /dev/null; then
+			sudo add-apt-repository ppa:oranchelo/oranchelo-icon-theme -y
+			local repo_added=true
+			fi
+		if [[ "$repo_added" == true ]]; then sudo apt-get update; fi
+		$D_INSTALL oranchelo-icon-theme
+		$D_INSTALL papirus-icons
+		fi
+
+	description="Extra fonts"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL ttf-ubuntu-font-family
+		$D_INSTALL fonts-dejavu ttf-dejavu
+		$D_INSTALL ttf-mscorefonts-installer
+		$D_INSTALL fonts-droid fonts-liberation fonts-sil-gentium
+		$D_INSTALL ttf-ancient-fonts ttf-stay-puft ttf-radisnoir
+		$D_INSTALL ttf-isabella ttf-essays1743 ttf-engadget ttf-beteckna 
+		$D_INSTALL ttf-adf-romande ttf-adf-oldania ttf-adf-mekanus ttf-adf-irianis
+		$D_INSTALL ttf-adf-ikarius ttf-adf-gillius ttf-adf-baskervald
+		fi
+
+	typical_ending
+}
+
+preparation_step_8 ()
+{
+	typical_beginning offline # since there are some apt-get stuff
+
+	#### Interactive general customization (mainly via 'gsettings')
+
+	printf "Enter the number of the desired procedure:\n"
+	printf "[0] Do nothing\n[1] Interactive customization\n[2] Default / Same as always...\n"
+	read -p "> " buffer
+	if [[ "$buffer" == 0* ]]; then return 0
+	elif [[ "$buffer" == 2* ]]; then
+		local -r same_as_always=true
+		buffer2='/org/compiz/profiles/unity/plugins/unityshell/'
+		if [[ "${ubu_ver%%.*}" -lt 16 ]]; then
+			unsudo gsettings set org.gnome.desktop.interface ubuntu-overlay-scrollbars false
+			fi
+		if laptop-detect; then 
+			unsudo gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true
+			fi
+		if [[ "${ubu_ver%%.*}" -ge 16 ]]; then 
+			unsudo gsettings set com.canonical.Unity.Launcher launcher-position Bottom
+			fi
+		buffer=$(xrandr | fgrep '*' | head -n1 | sed -r 's/^.*[^[:digit:]]([[:digit:]]+)x([[:digit:]]+).*?$/\1\n\2\n/')
+		local screensize=$(printf "$buffer" | head -n1)
+		buffer=$(printf "$buffer" | tail -n1)
+		if [[ $((buffer + screensize)) -le 2500 ]]; then
+			unsudo gsettings set org.compiz.unityshell:$buffer2 icon-size 32
+			fi
+		unsudo  gsettings set com.canonical.desktop.interface scrollbar-mode normal \\n \
+			gsettings set org.compiz.unityshell:$buffer2 background-color "'#000000AA'" \\n \
+			gsettings set org.compiz.unityshell:$buffer2 panel-opacity "'0.95'" \\n \
+			gsettings set org.compiz.unityshell:$buffer2 icon-size 36 \\n \
+			gsettings set com.canonical.Unity.Launcher launcher-position Bottom \\n \
+			gsettings set com.canonical.Unity integrated-menus true \\n \
+			gsettings set org.gnome.desktop.background show-desktop-icons true \\n \
+			gsettings set com.canonical.unity-greeter play-ready-sound false \\n \
+			gsettings set com.canonical.indicator.session suppress-logout-restart-shutdown false \\n \
+			gsettings set org.gnome.nautilus.icon-view captions "\"['size', 'date_modified', 'none']\"" \\n \
+			gsettings set org.gnome.nautilus.icon-view thumbnail-size 128 \\n \
+			gsettings set org.gnome.desktop.media-handling automount true \\n \
+			gsettings set com.canonical.indicator.datetime time-format '24-hour' \\n \
+			gsettings set com.canonical.indicator.datetime show-auto-detected-location true \\n \
+			gsettings set com.canonical.indicator.datetime show-locations true
+		fi
+
+	if [[ $(cat /etc/rc.local | grep -c 'rfkill block bluetooth') -lt 1 ]]; then
+		printf "\n"
+		read -p "Does this machine have bluetooth? [y/N] " buffer
+		if [[ $buffer == [Yy]* ]]; then 
+			read -p "Do you use it? [y/N] " buffer
+			if ! [[ $buffer == [Yy]* ]]; then add2startup 'rfkill block bluetooth'; fi
+		else 
+			rm -f /etc/xdg/autostart/indicator-bluetooth.desktop
+			sudo rm -f $HOME/.config/autostart/indicator-bluetooth.desktop; fi
+		fi
+
+	printf "\nEnter the letter/symbol of the theme you want to use:\n"
+	printf "[X] \033[3mthe one I'm currently using...\033[0m\n"
+	i=0; buffer2=""
+	for buffer in `ls -1 /usr/share/themes`; do
+		printf "[%b] $buffer\n" $(printf '\\%03o' $((i + 65)))
+		i=$((i + 1))
+		buffer2+="$buffer\n"
+		done
+	read -p "> " buffer
+	if [[ "$buffer" != [Xx]* ]]; then
+		buffer=$(printf "$buffer" | tr '[:lower:]' '[:upper:]')
+		buffer=$(printf "%d" \'${buffer:0:1})
+		buffer=$((buffer - 64))
+		if [[ $buffer -lt $(printf "$buffer2" | wc -l) ]]; then
+			buffer2=$(printf "$buffer2" | sed $buffer'q;d')
+			unsudo  gsettings set org.gnome.desktop.interface gtk-theme "$buffer2" \\n \
+				gsettings set org.gnome.metacity theme "$buffer2" \\n \
+				gsettings set org.gnome.desktop.wm.preferences theme "$buffer2" \\n \
+				gsettings set com.canonical.unity-greeter theme-name "$buffer2"
+			fi
+		fi
+
+	printf "\nEnter the letter/symbol of the icon theme you want to use:\n"
+	printf "[X] \033[3mthe one I'm currently using...\033[0m\n"
+	i=0; buffer2=""
+	for buffer in `find /usr/share/icons -mindepth 1 -maxdepth 1 -type d -printf "%f\n"`; do
+		printf "[%b] $buffer\n" $(printf '\\%03o' $((i + 65)))
+		i=$((i + 1))
+		buffer2+="$buffer\n"
+		done
+	read -p "> " buffer
+	if [[ "$buffer" != [Xx]* ]]; then
+		buffer=$(printf "$buffer" | tr '[:lower:]' '[:upper:]')
+		buffer=$(printf "%d" \'${buffer:0:1})
+		buffer=$((buffer - 64))
+		if [[ $buffer -lt $(printf "$buffer2" | wc -l) ]]; then
+			buffer2=$(printf "$buffer2" | sed $buffer'q;d')
+			unsudo  gsettings set org.gnome.desktop.interface icon-theme "$buffer2" \\n \
+				gsettings set com.canonical.unity-greeter icon-theme-name "$buffer2"
+			fi
+		fi
+	
+	printf "\n"
+
+	read -p "Display the current date on the time indicator? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then
+		printf "Enter the number of your preferred date format:\n"
+		read -p "[1] MM/DD/YYYY [2] DD/MM/YYYY [3] MM/DD/YY [4] DD/MM/YY ... " buffer2
+		read -p "Do you want the current weekday to be displayed too? [y/N] " buffer
+		if [[ ( "$buffer2" == [1-4] ) && ( "$buffer" == [Yy]* ) ]]; then
+			if [ "$buffer2" == 1 ]; then date_time_format='[ %a, %m/%d/%Y ]   %R'
+			elif [ "$buffer2" == 2 ]; then date_time_format='[ %a, %d/%m/%Y ]   %R'
+			elif [ "$buffer2" == 3 ]; then date_time_format='[ %a, %m/%d/%y ]   %R'
+			elif [ "$buffer2" == 4 ]; then date_time_format='[ %a, %d/%m/%y ]   %R'; fi
+		elif [[ "$buffer2" == [1-4] ]]; then
+			if [ "$buffer2" == 1 ]; then date_time_format='[ %m/%d/%Y ]   %R'
+			elif [ "$buffer2" == 2 ]; then date_time_format='[ %d/%m/%Y ]   %R'
+			elif [ "$buffer2" == 3 ]; then date_time_format='[ %m/%d/%y ]   %R'
+			elif [ "$buffer2" == 4 ]; then date_time_format='[ %d/%m/%y ]   %R'; fi
+		else
+			date_time_format='[ %m/%d/%Y ]   %R'
+			fi
+		unsudo	gsettings set com.canonical.indicator.datetime time-format 'custom' \\n \
+			gsettings set com.canonical.indicator.datetime custom-time-format "\"$date_time_format\""
+	else
+		unsudo gsettings set com.canonical.indicator.datetime time-format '24-hour'
+		fi
+	unsudo  gsettings set com.canonical.indicator.datetime show-auto-detected-location true \\n \
+		gsettings set com.canonical.indicator.datetime show-locations true
+
+	# The following settings may be lost after changing themes... So, just in case...
+	unsudo  gsettings set org.gnome.eog.ui statusbar true \\n \
+		gsettings set org.gnome.eog.view use-background-color true \\n \
+		gsettings set org.gnome.eog.view background-color "'rgb(255,255,255)'" \\n \
+		gsettings set org.gnome.eog.view transparency background \\n \
+		gsettings set org.gnome.eog.fullscreen upscale false \\n \
+		gsettings set org.gnome.eog.view scroll-wheel-zoom true \\n \
+		gsettings set org.gnome.eog.view interpolate true \\n \
+		gsettings set org.gnome.eog.view extrapolate true
+
+	printf "\n"
+	if [[ "$same_as_always" == true ]]; then cleanse; return 0; fi
+
+	read -p "Enable normal scrollbars? [y/N] " buffer
+	if [[ $buffer == [Yy]* ]]; then 
+		if [[ "${ubu_ver%%.*}" -lt 16 ]]; then
+			unsudo gsettings set org.gnome.desktop.interface ubuntu-overlay-scrollbars false
+			fi
+		unsudo gsettings set com.canonical.desktop.interface scrollbar-mode normal		
+	else
+		if [[ "${ubu_ver%%.*}" -lt 16 ]]; then
+			unsudo gsettings set org.gnome.desktop.interface ubuntu-overlay-scrollbars true
+			fi
+		unsudo gsettings set com.canonical.desktop.interface scrollbar-mode overlay-auto
+		fi
+
+	if laptop-detect; then 
+		read -p "Enable natural scrolling? [y/N] " buffer
+		if [[ $buffer == [Yy]* ]]; then 
+			unsudo gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true
+		else
+			unsudo gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll false
+			fi
+		fi
+
+	if [[ "${ubu_ver%%.*}" -ge 16 ]]; then 
+		read -p "Place the Unity Launcher at the bottom? [Y/n] " buffer
+		if [[ "$buffer" != [Nn]* ]]; then
+			unsudo gsettings set com.canonical.Unity.Launcher launcher-position Bottom
+		else
+			unsudo gsettings set com.canonical.Unity.Launcher launcher-position Left
+			fi
+		fi
+
+	buffer2='/org/compiz/profiles/unity/plugins/unityshell/'
+
+	buffer=$(gsettings get org.compiz.unityshell:$buffer2 icon-size)
+	read -p "Change the Unity Launcher size? (current size: ${buffer}px) [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then	
+		read -p "Enter the new size (in pixels): " buffer
+		if [[ "$buffer" =~ ^[[:digit:]]{1,2}$ ]]; then
+			unsudo gsettings set org.compiz.unityshell:$buffer2 icon-size "$buffer"
+			fi
+		fi
+
+	buffer=$(gsettings get org.compiz.unityshell:$buffer2 background-color)
+	read -p "Change the Unity Launcher color and opacity? (currently: $buffer) [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then	
+		read -p "Enter the new color (as #RRGGBBAA): " buffer
+		if [[ "$buffer" =~ ^#[[:digit:]AaBbCcDdEeFf]{8}$ ]]; then
+			unsudo gsettings set org.compiz.unityshell:$buffer2 background-color "'$buffer'"
+			fi
+		fi
+	unsudo gsettings set org.compiz.unityshell:$buffer2 panel-opacity "'0.95'"
+	
+	read -p "Show the menus for a window in the window's title bar? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then unsudo gsettings set com.canonical.Unity integrated-menus true
+	else unsudo gsettings set com.canonical.Unity integrated-menus false; fi
+
+	read -p "Hide desktop icons? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then unsudo gsettings set org.gnome.desktop.background show-desktop-icons false
+	else unsudo gsettings set org.gnome.desktop.background show-desktop-icons true; fi
+
+	read -p "Disable Ubuntu login sound? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then unsudo gsettings set com.canonical.unity-greeter play-ready-sound false
+	else unsudo gsettings set com.canonical.unity-greeter play-ready-sound true; fi
+
+	read -p "Split Restart and Shutdown into different options? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then 
+		unsudo gsettings set com.canonical.indicator.session suppress-logout-restart-shutdown true
+	else 
+		unsudo gsettings set com.canonical.indicator.session suppress-logout-restart-shutdown false
+		fi
+
+	printf "\n"
+
+	read -p "Remove \"Email...\" option from Nautilus context menu? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then sudo apt-get -y purge nautilus-sendto &> /dev/null; fi
+
+	read -p "Show file size below the file name on Nautilus icon view? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then buffer="\"['size', 'date_modified', 'none']\""
+	else buffer="\"['none', 'size', 'date_modified']\""; fi
+	unsudo gsettings set org.gnome.nautilus.icon-view captions "$buffer"
+
+	read -p "Increase Nautilus thumbnails size? [y/N] " buffer
+	buffer2=$(gsettings get org.gnome.nautilus.icon-view thumbnail-size)
+	if [[ ( "$buffer" == [Yy]* ) && ( "$buffer2" -lt 127 ) ]]; then buffer=$((buffer2 * 2))
+	else buffer="$buffer2"; fi
+	unsudo gsettings set org.gnome.nautilus.icon-view thumbnail-size $buffer
+
+	printf "\n"
+
+	read -p "Automatically mount devices when plugged? [y/N] " buffer
+	if [[ "$buffer" == [Yy]* ]]; then unsudo gsettings set org.gnome.desktop.media-handling automount true
+	else unsudo gsettings set org.gnome.desktop.media-handling automount false; fi
+
+	cleanse
+}
+
+preparation_step_9 ()
+{
+	typical_beginning
+
+	description="BitTorrent client and tools"
+	if installation_dialog default-no "$description"; then
+		printf "Enter the letter of your preferred client:\n"
+		printf "[D] Deluge\n[Q] qBittorrent\n[T] Transmission\n"
+		read -p "> " buffer
+		if [[ "$buffer" == *[Dd]* ]]; then $D_INSTALL deluge-gtk deluge-web; fi
+		if [[ "$buffer" == *[Qq]* ]]; then $D_INSTALL qbittorrent; fi
+		if [[ "$buffer" == *[Tt]* ]]; then $D_INSTALL transmission-gtk; fi
+		#* install deluge-gtk deluge-web | qbittorrent | transmission-gtk
+		$D_INSTALL buildtorrent btcheck
+		fi
+
+	description="Resilio Sync (P2P file synchronisation tool)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL resilio-sync
+		fi
+
+	description="Cloud storage client(s)"
+	if installation_dialog default-yes "$description"; then
+		printf "Enter the letter(s) of the desired services:\n"
+		printf "[B] Box\n[D] Dropbox\n[F] 4shared\n[G] Google Drive\n[M] MEGA\n[O] OneDrive\n"
+		read -p "> " buffer
+		if [[ "$buffer" == *[Bb]* ]]; then printf "To be implemented...\n"; fi #TODO
+		if [[ "$buffer" == *[Dd]* ]]; then $D_INSTALL nautilus-dropbox; fi
+		if [[ "$buffer" == *[Ff]* ]]; then printf "To be implemented...\n"; fi #TODO
+		if [[ "$buffer" == *[Gg]* ]]; then printf "To be implemented...\n"; fi #TODO
+		if [[ "$buffer" == *[Mm]* ]]; then
+			buffer="https://mega.nz/linux/MEGAsync/xUbuntu_${ubu_ver}/amd64"
+			if is_x64; then buffer+="$buffer/megasync-xUbuntu_${ubu_ver}_amd64.deb"
+			else buffer+="$buffer/megasync-xUbuntu_${ubu_ver}_i386.deb"; fi
+			wdebi "$buffer" "$HOME/Downloads/MEGASync.deb"
+			fi
+		if [[ "$buffer" == *[Oo]* ]]; then printf "To be implemented...\n"; fi #TODO
+		#* install 
+		#* install nautilus-dropbox
+		#* install 
+		#* install 
+		#* install megasync nautilus-megasync
+		#* install 
+		fi
+
+	typical_ending
+}
+
+preparation_step_10 ()
+{
+	typical_beginning
+
+	description="Command line tools to deal with charsets and character encoding"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL utfout
+		$D_INSTALL uniutils
+		$D_INSTALL recode recode-doc
+		$D_INSTALL flip
+		$D_INSTALL enca
+		fi
+
+	description="Command line tools to handle media and metadata"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL shntool cuetools mkcue
+		$D_INSTALL sox libsox-fmt-all
+		$D_INSTALL normalize-audio
+		$D_INSTALL mat
+		$D_INSTALL exiv2
+		$D_INSTALL renrot
+		$D_INSTALL exempi
+		$D_INSTALL extract
+		$D_INSTALL mp3diags
+		$D_INSTALL eyed3 atomicparsley flactag
+		$D_INSTALL mkvtoolnix
+		fi
+
+	description="Command line toolkit to record, convert and stream media"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL ffmpeg ffmpeg-doc
+		fi
+
+	description="Command line tools to deal with CDs extraction and writing"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL cdrdao cdparanoia xfca
+		fi
+
+	description="Command line tools to convert multiple formats to ISO images"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL iat b5i2iso ccd2iso cdi2iso daa2iso mdf2iso pdi2iso uif2iso
+		fi
+
+	description="A console-based hex editor"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL ncurses-hexedit
+		fi
+
+	typical_ending
+}
+
+preparation_step_11 ()
+{
+	typical_beginning
+
+	description="GIMP (image editor)"
+	if installation_dialog default-yes "$description"; then
+		$D_INSTALL gimp gimp-data-extras
+		$D_INSTALL gimp-gutenprint gimp-flegita gimp-gluas
+		$D_INSTALL abr2gbr
+		#TODO:
+		#$D_INSTALL gimp-plugin-registry gimp-lensfun gimp-gap
+		#$D_INSTALL gimp-dds gimp-dcraw gimp-ufraw gimp-texturize gimp-normalmap
+		fi
+
+	description=" Audacity (audio editor and recorder)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL audacity
+		fi
+
+	description="TuxGuitar (music tabs viewer and editor)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL tuxguitar tuxguitar-alsa tuxguitar-jsa tuxguitar-oss
+		fi
+
+	description=" Aegisub (subtitles viewer and editor)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL aegisub aegisub-l10n
+		fi
+
+	description="MKVToolNix (toolkit to create and deal with Matroska files) GUI"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL mkvtoolnix mkvtoolnix-gui
+		fi
+
+	description="MusicBrainz Picard (mass music tagger)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL picard
+		$D_INSTALL isrcsubmit python3-discid 
+		fi
+
+	description=" K3b (discs burning, authoring, ripping and copying tool)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL k3b
+		install_latest_version "libk3b_VER_-extracodecs" "K3b extra decoders" "10!"
+		$D_INSTALL k3b-l18n k3b-extrathemes
+		fi
+
+	description="AcetoneISO (disc images mounter, manager and converter)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL acetoneiso
+		fi
+
+	description="LMMS (multimedia studio)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL lmms
+		$D_INSTALL fil-plugins mcp-plugins omins freepats fluid-soundfont-gm tap-plugins caps
+		fi
+
+	description="Calibre (ebooks viewer, editor and library)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL calibre
+		fi
+
+	typical_ending
+}
+
+preparation_step_12 ()
+{
+	typical_beginning
+
+	description="A periodic table"
+	if installation_dialog defalt-no "$description"; then
+		if ! $D_INSTALL kalzium; then $D_INSTALL gelemental; fi
+		#* install kalzium | gelemental
+		fi
+
+	typical_ending
+}
+
+preparation_step_13 ()
+{
+	typical_beginning
+
+	description="TeX Live basics, LaTeX tools and a LaTeX editor"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL texlive texlive-base texlive-binaries
+		$D_INSTALL texlive-latex-extra texlive-luatex texlive-htmlxml
+		$D_INSTALL texlive-pictures texlive-publishers texlive-science
+		$D_INSTALL latex-xcolor
+		$D_INSTALL lacheck
+		$D_INSTALL latexmk
+		$D_INSTALL chktex
+		$D_INSTALL latexdiff
+		$D_INSTALL latex2html
+		printf "\nChoose (the number of) your prefered editor:\n"
+		printf "[0] Gummi\n[1] LaTeXila\n[2] Texmaker \033[3m(default)\033[0m\n"
+		printf "[3] TeXstudio\n[4] TeXworks\n[5] Winefish\n\n"
+		read -p "> " buffer
+		case "${buffer,,}" in
+			0|gummi )	$D_INSTALL gummi ;;
+			1|latexila )	$D_INSTALL latexila ;;
+			3|texstudio )	$D_INSTALL texstudio ;;
+			4|texworks )	$D_INSTALL --install-suggests texworks ;;
+			5|winefish )	$D_INSTALL winefish ;;
+			* )		$D_INSTALL texmaker ;;
+			esac
+		#* install gummi | latexila | texmaker | texstudio | texworks | winefish
+		fi
+
+	typical_ending
+}
+
+preparation_step_14 ()
+{
+	typical_beginning
+
+	description="Oject-relational database system (PostgreSQL)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL postgresql postgresql-contrib
+		$D_INSTALL libreoffice-sdbc-postgresql
+		read -p "Do you want to set the password for 'postgres' role now? [Y/n] " buffer
+		if [[ "$buffer" != [Nn]* ]]; then sudo -u postgres psql postgres <<< "\\password postgres"; fi
+		sudo -u postgres createuser -d -R $USER
+		read -p "Do you want to create a 'root' role (create roles, create dbs, superuser)? [Y/n] " buffer
+		if [[ "$buffer" != [Nn]* ]]; then sudo -u postgres createuser -d -r -s --replication root; fi
+		fi
+	#TODO: alternatives 
+
+	typical_ending
+}
+
+preparation_step_15 ()
+{
+	typical_beginning
+
+	description="Prolog compiler and interpreter"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL swi-prolog swi-prolog-doc
+		$D_INSTALL swi-prolog-java
+		$D_INSTALL gprolog gprolog-doc
+		fi
+
+	description="GCC and G++ (C/C++ compilers) and C/C++ stuff"
+	if installation_dialog default-no "$description"; then
+		if ! ls /etc/apt/sources.list.d/ubuntu-toolchain*.list &> /dev/null; then
+			sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa -y
+			sudo apt-get update
+			fi
+		$D_INSTALL gcc gcc-doc g++ 
+		install_latest_version 'gcc-_VER_ g++-_VER_' 'gcc' '9.0' #TODO
+		buffer="$install_latest_version_ver"
+		sudo update-alternatives --remove-all gcc &> /dev/null
+		sudo update-alternatives --remove-all g++ &> /dev/null
+		sudo update-alternatives --remove-all cc &> /dev/null
+		sudo update-alternatives --remove-all c++ &> /dev/null
+		if [[ $(vern gcc) -lt $(vern gcc-$buffer) ]]; then
+			sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$buffer 20
+			sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$buffer 20
+			fi
+		sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30
+		sudo update-alternatives --set cc /usr/bin/gcc
+		sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30
+		sudo update-alternatives --set c++ /usr/bin/g++
+		read -p "Do you want to install Qt binary/source files and Qt Creator? [y/N] " buffer
+		$D_INSTALL libboost-all-dev
+		$D_INSTALL libboost-doc
+		if [[ "$buffer" != [Nn]* ]]; then
+			read -p "Will you use Qt to only develop software under the LGPL/GPL licenses? [y/N] " buffer
+			if [[ "$buffer" != [Nn]* ]]; then
+				buffer2='https://download.qt.io/official_releases/online_installers/'
+				if is_x64; then buffer2+='qt-unified-linux-x64-online.run'
+				else buffer2+='qt-unified-linux-x86-online.run'; fi
+				wget "$buffer2" -O "$HOME/qt-online-installer.run" -c -S -N
+				chmod 755 "$HOME/qt-online-installer.run"
+				sudo "$HOME/qt-online-installer.run"
+			else
+				buffer2='https://www.qt.io/download/'
+				printf "So access $buffer2 to find what properly attends your needs.\n"
+				fi
+			fi
+		#* install \033[0;36mQt Packages & Qt Creator\033[0m
+		fi
+		
+	description="gdb ()"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gdb
+		$D_INSTALL gdbserver
+		fi
+		
+	description="Valgrind (tool to debug and profile Linux programs)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL valgrind
+		$D_INSTALL apport-valgrind
+		$D_INSTALL libtest-valgrind-perl
+		printf "\nEnter the digit(s) of the Valgrind frontend/GUI(s) you want:\n"
+		printf "[0] \033[3mnone (default)\033[0m\n"
+		printf "[1] KCachegrind\n[2] Alleyoop\n[3] Valkyrie \n[4] Massif Visualizer\n"
+		read -p "> " buffer
+		if [[ "$buffer" =~ ^.*(1|kcachegrind).*$ ]]; then $D_INSTALL kcachegrind; fi
+		if [[ "$buffer" =~ ^.*(2|alleyoop).*$ ]]; then $D_INSTALL alleyoop; fi
+		if [[ "$buffer" =~ ^.*(3|valkyrie).*$ ]]; then $D_INSTALL valkyrie; fi
+		if [[ "$buffer" =~ ^.*(4|massif.?visualizer).*$ ]]; then $D_INSTALL massif-visualizer; fi
+		#* install \033[3mkcachegrind | malleyoop | valkyrie | massif-visualizer\033[0m
+		#TODO: eclipse-cdt-valgrind
+		fi
+
+	description="An advanced IDE for Java, PHP and some other languages"
+	if installation_dialog default-no "$description"; then
+		download_latest_version "http://download.netbeans.org/netbeans/_VER_/final/bundles/netbeans-_VER_-linux.sh" \
+			"NetBeans" "9.9" "$HOME/Downloads/netbeans-8.2-linux.sh" #TODO: via repo isn't auto-updated too?
+		chmod +x "$HOME/Downloads/netbeans-8.2-linux.sh"
+		"$HOME/Downloads/netbeans-8.2-linux.sh"
+		fi
+
+	description="Geany (basic IDE)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL geany
+		$D_INSTALL geany-plugins geany-plugins-common
+		fi
+
+	description="Developer plugins for gedit (if it is there)"
+	if dpkg -s gedit &> /dev/null; then
+		if installation_dialog default-no "$description"; then
+			$D_INSTALL gedit-developer-plugins gedit-source-code-browser-pl
+			fi
+		#* install \033[3mgedit-developer-plugins gedit-source-code-browser-pl\033[0;32m
+		fi
+
+	typical_ending
+
+	return 0
+	#### --------
+	
+	# Interpreters for Lisp, Ruby
+	$D_INSTALL clisp rep ruby
+
+	# Compilers for Fortran, Go, Lisp
+	$D_INSTALL gfortran gfortran-multilib
+	$D_INSTALL gccgo gccgo-multilib
+		$D_INSTALL sbcl
+
+	# Lisp stuff
+	$D_INSTALL common-lisp-controller cl-asdf cl-awk cl-quicklisp cl-getopt cl-launch cl-ptester
+	$D_INSTALL cl-regex cl-fftw3 cl-photo cl-plplot cl-bordeaux-threads
+
+	# C/C++ stuff
+	$D_INSTALL libgomp*
+	$D_INSTALL libgl1-mesa-dev libgl1-mesa-dri
+
+	# Docs for some languages and libraries
+	$D_INSTALL manpages-dev
+	$D_INSTALL clisp-doc rep-doc
+}
+
+preparation_step_16 ()
+{
+	typical_beginning
+
+	description="Apache (HTTP Server)"
+	if installation_dialog default-no "$description"; then
+		install_latest_version apache_VER_ apache '5!'
+		install_latest_version apache_VER_-doc apache-doc '5!'
+		install_latest_version apache_VER_-utils apache-utils '5!'
+		$D_INSTALL apachetop
+		#TODO: varnish? nginx?
+		fi
+
+	description="PHP interpreter and Apache module"
+	if installation_dialog default-no "$description"; then
+		if ! $D_INSTALL php php-cli php-doc; then
+			install_latest_version php_VER_ php '9.0!'
+			install_latest_version php_VER_-cli php-cli '9.0!'
+			install_latest_version php_VER_-doc '9.0!'
+			fi
+		#* install php... php...-cli php-doc
+		install_latest_version libapache_VER_-mod-php libapache-mod-php '5!'
+		printf '<?php\n\n\n\n?>' > "$HOME/Templates/PHP Script.php"
+		sudo chown $real_user:$real_user "$HOME/Templates/PHP Script.php"
+
+		#TODO: lua-apr? libapache2-mod-(lisp|perl2|python) libapache2-reload-perl
+		#TODO: php-json? php-readline?
+		#TODO: ...laravel, zend, horde, pear, nette, cake, 
+		#printf "Enter the letters of the desired frameworks:\n[C] for CakePHP\n["
+		#if [[ "$buffer" == *[Cc]* ]]; then $D_INSTALL cakephp cakephp-scripts
+		fi
+
+	description="Node.js and npm"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL nodejs nodejs-dev
+		$D_INSTALL npm
+		sudo npm cache clean -f
+		sudo npm install -g n
+		sudo n stable
+		sudo npm install -g util chrono jquery
+		#* install \033[1;32;40mutil\033[0m \033[1;32;40mchrono\033[0m \033[1;32;40mjquery\033[0;2;3m (via npm)
+		fi
+
+	typical_ending
+}
+
+preparation_step_17 ()
+{
+	description="Collection of 1-player puzzle games"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL sgt-puzzles
+		fi
+
+	description="Collection of solitaire card games"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL aisleriot
+		fi
+
+	description="Chess board, chess engines and a chess books converter"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-chess
+		$D_INSTALL crafty fairymax fruit glaurung hoichess stockfish toga2 sjeng
+		$D_INSTALL convert-pgn
+		fi
+
+	description="Hearts card game (with configurable rulesets)"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-hearts
+		fi
+
+	description="Mahjongg solitaire game"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-mahjongg
+		fi
+
+	description="Klotski, Minesweeper and Sudoku puzzle games"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-klotski
+		$D_INSTALL gnome-mines
+		$D_INSTALL gnome-sudoku
+		fi
+
+	description="Yahtzee dice game"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL openyahtzee
+		fi
+
+	description="Planarity puzzle game"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gplanarity
+		fi
+
+	description="Virtual Rubik's Cube puzzle game"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL kubrick
+		fi
+
+	description="Mastermind (TM) clone"
+	if installation_dialog default-no "$description"; then
+		$D_INSTALL gnome-mastermind
+		fi
+}
+
+preparation_step_ ()
+{
+		$F_INSTALL python-pip python-pip3
+
+	# Additional features for basic programs
+	$D_INSTALL nautilus-compare nautilus-open-terminal nautilus-image-converter
+}
+
+# --------------------------------------------------------------------------------------------------
+# ==================================================================================================
+
+# Detects unsuported distributions
+if [[ "${ubu_ver%%.*}" -lt 14 ]]; then printf "\033[3;31mUbuntu $ubu_ver is not supported\033[0m\n\n"; exit 122; fi
+if [[ "$distro_" != [Uu]'buntu' ]]; then "\033[3;31m$distro_ is not supported\033[0m\n\n"; exit 123; fi
+
+# Detects the '-h' and '-y' options
+if [[ "$*" =~ ^(.*[[:space:]]+)?-(y|-yes-to-everything)([[:space:]]+.*)?$ ]]; then apt_opts="-y"; fi
+if [[ "$*" =~ ^(.*[[:space:]]+)?(-(h|-help)|\?)([[:space:]]+.*)?$ ]]; then info_mode=true; fi
+if [[ "$*" =~ ^(.*[[:space:]]+)?-s([[:space:]]+.*)?$ ]]; then sucint_mode=true; fi
+
+# Sets $D_INSTALL the default package installation command
+# and $F_INSTALL as the "forced" installation command
+D_INSTALL="sudo apt-get --auto-remove $apt_opts install"
+F_INSTALL="sudo apt-get --auto-remove -y install"
+# Sets $DIALOG as the "options dialog" command
+if hash whiptail &> /dev/null; then DIALOG=whiptail
+else DIALOG=dialog; fi
+
+# Checks if the last argument is a step identificator
+if [[ ( $# -gt 0 ) && ( "${!#}" =~ ^([[:digit:]]{,2}|[^-]{2}.*)$ ) ]]; then
+	step_id=$(echo "${!#// /_}" | tr '[:upper:]' '[:lower:]' | \
+		sed -r -e 's/^[[:space:]]+//;s/[[:space:]]+$//;s/^99(\??)$/bugfixing_step\1/')
+	if ! [[ ( "${!#}" =~ ^([[:digit:]]{,2}\??|.*\?\?)$ ) || \
+			( $(grep -Ec "^$step_id[\t ]+\(\)[^[:graph:]]*$" "$selfpath") -gt 0 ) ]]; then
+		printf "\033[3;33mCouldn't recognize '${step_id//_/ }'\033[0m\n\n"
+		step_id=""
+		fi
+	fi
+
+# Produces the proper introductory messages and dialogs
+if [[ "$sucint_mode" == true ]]; then
+	read -p "Now enter the number of the step you wish to run or 'q' to quit: " step_id
+elif [[ ( "$info_mode" == true ) || ( "$step_id" == "" ) ]]; then
+	printf "This script prepares your fresh Ubuntu $ubu_ver\nfor all of your possible needs\n\n"
+	if [[ ( "$info_mode" != true ) && ( $(history $HISTSIZE | grep -Ec "${0##*/}" ) -lt 1 ) ]]; then
+		if ! primal_step; then printf "\n\033[3mPrimal step was avoided...\033[0m\n\n"; fi
+		fi
+	if ! [[ "$info_mode" == true ]]; then printf "\033[2m[press any key to proceed]\033[0m "; read -n 1 -s; fi
+	printf "\n$separator"
+	list_all_steps
+	printf "\n\033[1;37mSTEP 99 -----------\033[0m\n"
+	printf "> Bugfixing step: a list of typical bugs with automatic fixes or tutorials\n"
+	printf "\t\033[1;30mThings like \"Fn keys not working\" and \"Hibernation not available\"...\033[0m\n"
+	printf "\n\033[1m Above, is the list of all available preparation steps"
+	printf "\n with number and description...\033[0m\n"
+	printf "\n  \033[1;35mTIPS:\033[0;35m\n"
+	if [[ "$info_mode" == true ]]; then printf "\033[1m"; fi
+	printf "* the '-h' option ends up execution before prompting or doing anything"
+	if [[ "$info_mode" == true ]]; then printf " [ON]\033[0;35m\n"; else printf "\n"; fi
+	printf "* it is \033[4mrecommended\033[0;35m to follow the order from step 0 to step 7\n"
+	printf "* you can use '${0##*/} [-y] STEP' to quickly run any step\n"
+	if [[ "$apt_opts" == "-y" ]]; then printf "\033[1m"; fi
+	printf "* the '-y' option skips most dialogs by automaticaly answering \"yes\""
+	if [[ "$apt_opts" == "-y" ]]; then printf " [ON]\033[0;35m\n"; else printf "\n"; fi
+	printf "* in addition to the preparation steps, there are also the following actions:\n"
+	printf "  'set default folder', 'update', 'full update', 'cleanse', 'TODOs' \033[1m...\033[0;35m\n"
+	printf "* to get more info., enter a step number or action name followed by a '?'\n"
+	printf "* to get info. about a package, enter its name followed by '??'\n"
+	printf "* if some package is already installed and it is of your interest, consider\n"
+	printf "  accepting to \"install\" it through this script anyway, for that it may include\n"
+	printf "  some improvements and/or upgrades on the installation procedure\n"
+	printf "\033[0m\n"
+	if [[ "$info_mode" != true ]]; then
+		read -p "Now enter the number of the step you wish to run or 'q' to quit: " step_id
+		step_id=$(echo "${step_id// /_}" | tr '[:upper:]' '[:lower:]' | \
+			sed -r -e 's/^[[:space:]]+//;s/[[:space:]]+$//;s/^99(\??)$/bugfixing_step\1/')
+	else
+		exit 0
+		fi
+else
+	if [[ ( "$apt_opts" == "-y" ) && ( "$step_id" != *\?\? ) ]]; then
+		printf "\033[3;35mskips most dialogs by automaticaly answering \"yes\": ON\033[0m\n"
+		fi
+	fi
+
+# Calls the requested actions or prints the requested information and exits
+printf "$separator\n"
+if [[ "$step_id" == [QXqx] ]]; then
+	printf "\033[3mNo actions...\033[0m\n\n"
+	exit 0
+elif [[ "$step_id" == *\? ]]; then
+	if [[ "$step_id" == *\?\? ]]; then package_details "${step_id%\?\?}"
+	else step_description "${step_id%?}"; fi
+	if ! [[ "$*" =~ ^(.*[[:space:]]+)?[^[:space:]]+\?([[:space:]]+.*)?$ ]]; then $0 -s $@; fi
+	exit 0
+else
+	if [[ "$step_id" =~ ^[0-9][0-8]?$ ]]; then
+		printf "Step $step_id selected...\n"
+		preparation_step_$step_id; step_status=$?
+		printf "\n\033[1;32mStep $step_id concluded\033[0m\n\n"
+	elif [[ $(grep -Ec "^${step_id%%[[:space:]]*}[\t ]+\(\)" "$selfpath") -gt 0 ]]; then
+		printf "${step_id//_/ } selected...\n"
+		sleep 3
+		$step_id; step_status=$?
+		printf "\n\033[1;32m${step_id//_/ } concluded\033[0m\n\n"
+	else
+		printf "\033[0;31mUnrecognized action: '$step_id'\033[0m\n\n"
+		$0 -s $@
+		fi
+	exit $step_status
+	fi
+
+
