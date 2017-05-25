@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# INSTALL MISSING DEPENDENCIES, IF THERE ARE ANY
+if ! hash shnsplit; then sudo apt-get install shntool; fi
+if ! hash mediainfo; then sudo apt-get install mediainfo; fi
+
+# DEAL WITH THE COMMAND LINE ARGUMENTS
+if [[ $# -ne 1 ]]; then printf "Usage: ${0##*/} FILE_TO_SPLIT\n\nTry '${0##*/} -h' for more information\n\n"; exit 5; fi
+if [[ -f "$1" ]] && [[ -r "$1" ]] && [[ $(mediainfo --full "$1" | grep -Ec '^[Aa]udio[[:space:]]*$') -gt 0 ]]; then FILE="$1"
+elif ! [[ -f "$1" ]]; then printf "'$1' does not exist\n"; exit 6
+elif ! [[ -r "$1" ]]; then printf "'$1' is not readable\n"; exit 7
+else printf "'$1' is not an audio file\n"; exit 8; fi
+
+# DETERMINE THE PROPER SHNSPLIT FORMAT VALUE FOR THE INPUT FILE AND INSTALL THE NEEDED PACKAGES RELATED TO
+declare -r SUFFIX="${FILE##*.}"
+declare -r CODEC=$(mediainfo --language=raw --full --inform="Audio;%Codec%" "$FILE" | tr '[:upper:]' '[:lower:]')
+if   [[ ( "$SUFFIX" =~ ^[Aa][Pp][Ee]$ ) || ( "$CODEC" =~ ^(ape|monkey.*)$ ) ]]; then
+	FORMAT="ape"
+	if ! dpkg -l monkeys-audio &> /dev/null; then sudo apt-get install monkeys-audio; fi
+elif [[ ( "$SUFFIX" =~ ^[Ff][Ll][Aa][Cc]$ ) || ( "$CODEC" =~ ^f(lac|ree\ lossless\ audio.*)$ ) ]]; then
+	FORMAT="flac"
+	if ! dpkg -l flac &> /dev/null; then sudo apt-get install flac; fi
+elif [[ ( "$SUFFIX" =~ ^[Ww][Vv][Pp]?$ ) || ( "$CODEC" =~ ^wav(pack)?$ ) ]]; then
+	FORMAT="wv"
+	if ! dpkg -l wavpack &> /dev/null; then sudo apt-get install wavpack; fi
+elif [[ "$SUFFIX" =~ ^[Ww][Aa][Vv][Ee]?$ ]]; then 
+	FORMAT="wav"
+elif [[ "$CODEC" =~ ^a(lac|pple\ lossless.*)$ ]]; then 
+	FORMAT="alac"
+elif [[ "$SUFFIX" =~ ^[Tt][Tt][Aa]$ ]]; then 
+	FORMAT="tta"
+	if ! dpkg -l ttaenc &> /dev/null; then sudo apt-get install ttaenc; fi
+elif [[ "$SUFFIX" =~ ^[Aa][Ii][Ff][Ff]?$ ]]; then 
+	FORMAT="aiff"
+	if ! dpkg -l sox &> /dev/null; then sudo apt-get install sox; fi
+elif [[ "$SUFFIX" =~ ^[Tt][Tt][Aa]$ ]]; then 
+	FORMAT="tta"
+	if ! dpkg -l ttaenc &> /dev/null; then sudo apt-get install ttaenc; fi
+	fi
+
+# CHANGE THE $PWD TO THE INPUT FILE'S LOCATION
+declare -r OLD_PWD="$PWD"
+cd "${FILE%/*}/"
+
+# DETERMINE THE PROPER .CUE FILE
+CUE_COUNT=$(find * -type f -regextype posix-extended -iregex '^.*\.cue$' -print | wc -l)
+if [[ "$CUE_COUNT" -lt 1 ]]; then printf ".cue file is missing!\n"; exit 9
+elif [[ -f "${FILE%.*}.cue" ]]; then CUE_FILE="${FILE%.*}.cue"
+elif [[ -f "$FILE.cue" ]]; then CUE_FILE="$FILE.cue"
+elif [[ -f "${FILE%.*}.CUE" ]]; then CUE_FILE="${FILE%.*}.CUE"
+elif [[ -f "$FILE.CUE" ]]; then CUE_FILE="$FILE.CUE"
+elif [[ "$CUE_COUNT" -eq 1 ]]; then CUE_FILE=$(find * -type f -regextype posix-extended -iregex '^.*\.cue$' -print)
+else printf "Enter the .cue file path:\n"; read CUE_FILE; fi
+
+# DO THE STUFF THROUGH SHNSPLIT
+shnsplit -o "$FORMAT" -f "$CUE_FILE" "$FILE"
+
+# RETURN TO THE OLD $PWD
+cd "$OLD_PWD"
