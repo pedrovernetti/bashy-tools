@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if [[ "$1" =~ ^-?-h(elp)?$ ]]; then
+	printf "Usage: ${0##*/} [APT_OPTIONS]\n\n"
+	printf "Runs 'sudo apt-get [APT_OPTIONS] purge ...' for each package listed by 'deborphan'\n"
+	exit
+	fi
+
+if ! hash deborphan &> /dev/null; then sudo apt-get -y install deborphan; fi
+
+orphans_list=$(deborphan)
+orphans_count=$(printf "$orphans_list" | wc -l)
+
+for i in `seq 1 $orphans_count`; do
+	if ! sudo apt-get $@ purge $(echo "$orphans_list" | sed $i'q;d'); then printf "\n"; break; fi
+	i=$((i + 1))
+	done
