@@ -1,5 +1,17 @@
 #!/bin/bash
 
+ # ==================================================== #
+ # This script looks better in a maximized window, on   #
+ # 1360px or wider screens...                           #
+ #                                                      #
+ # Run it with the '-h' option for better understanding #
+ #                                                      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # Originally written by <pedrovernetti@gmail.com>      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # tested in / thought for Ubuntu 16.04 and 18.04       #
+ # ==================================================== #
+
 # HELP ------------------------------------------------------------------------
 help_message ()
 {
