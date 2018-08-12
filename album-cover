@@ -210,10 +210,8 @@ audio_content=$(find "$ARG_A" -regextype posix-extended \
 # EMBEDDING COVER IMAGES INTO AUDIO FILES -------------------------------------
 while read -r buffer; do
 	if [[ "$buffer" =~ ^.*\.([Mm][Pp][23]|[Aa][Aa][Cc])$ ]]; then
-		eyeD3 -v --to-v2.3 --strict --no-tagging-time-frame --remove-images \
-		    "$buffer"
-		eyeD3 -v --strict --no-tagging-time-frame --remove-images \
-		      -add-image="$art":FRONT_COVER "$buffer"
+		eyeD3 -v --to-v2.3 --preserve-file-times --remove-all-images "$buffer"
+		eyeD3 -v --preserve-file-times --add-image="$art":FRONT_COVER "$buffer"
 	elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
 		AtomicParsley "$buffer" --artwork "$art"
 		mv -f "${buffer%.*}-temp-"*.m4? "$buffer"
