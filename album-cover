@@ -24,6 +24,7 @@ help_message ()
 		printf "  -C        auto-rename and move the cover image file\n"
 		printf "  -i        try using a cover image file inside the folder\n"
 		printf "  -J        remove known junk files inside the folder\n"
+		printf "  -Q        do not complain about non-square cover images\n\n"
 		printf "  -T        do not clear the thumbnails cache after running\n\n"
 	    printf "  Cover image must be of at least 500x500 and supported by imagemagick.\n"
 	    printf "  Images larger than 500x500 are automaticaly copied and scaled down.\n"
@@ -57,14 +58,17 @@ weird_image_rx='^.*\.((web|w?bm)p|bm|d(cr|ib)|(bp|mn)g|j(p[2fx]|ng|xr)|tiff?|'
 weird_image_rx+='(fl|qt?)if|p[abgnp]m|x[bp]m|c(r[2w]|in)|[hw]dp)$'
 weird_image_w_alpha_rx='^.*\.(p(s[bd]|cx)|(gi|wm)f|a(png|i)|svgz?|eps[fi]?|'
 weird_image_w_alpha_rx+='ic(o|ns)|vsd)$'
+image_rx='^.*\.((jpe?|pn)g|jpe)$'
 audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc])$'
 junk_rx='^(([Ff][Oo][Ll][Dd][Ee][Rr]|AlbumArt.*)\.((jpe?|pn)g|jpe|bmp)|'
 junk_rx+='[Tt][Hh][Uu][Mm][Bb][Ss]\.[Dd][Bb])$'
 MOVE_ART=false
 COVER_IS_INSIDE=false
 REMOVE_JUNK=false
+OK_NONSQUARE=false
 REMOVE_COVER=false
 KEEP_THUMBS_CACHE=false
+IS_TEMP=false
 
 # DEALING WITH COMMAND LINE ARGUMENTS -----------------------------------------
 ARG_A="${@:(-2):1}"
@@ -81,6 +85,8 @@ for i in `seq 1 $#`; do
         ARG_A="$ARG_B"
     elif [[ "${!i}" =~ ^-(J|-remove-junk)$ ]]; then 
         REMOVE_JUNK=true
+    elif [[ "${!i}" =~ ^-(Q|-nonsquare-ok)$ ]]; then 
+        OK_NONSQUARE=true
     elif [[ "${!i}" =~ ^-(r|-remove-cover)$ ]]; then 
         REMOVE_COVER=true
     elif [[ "${!i}" =~ ^-(T|-keep-thumbnails-cache)$ ]]; then 
@@ -122,50 +128,65 @@ if [[ ( "$ARG_B" =~ $remove_cover_rx ) || ( "$REMOVE_COVER" == true ) ]]; then
 	art="REMOVE_ALL"
 	
 # DEALING WITH THE COVER IMAGE ------------------------------------------------
-else
-	if [[ ( -f "$ARG_B" ) && ( -r "$ARG_B" ) ]]; then art="$ARG_B"
-	elif wget -O /tmp/aa.cover.tmp -c "$ARG_B"; then art="/tmp/aa.cover.tmp"; IS_TEMP=true
-	else echo "Cannot access '$ARG_B'"; exit 3; fi
-	width=$(identify -ping -format '%W\n%H' "$art" | sed '1q;d')
-	height=$(identify -ping -format '%W\n%H' "$art" | sed '2q;d')
-	IS_TEMP=false
-	art_lowercase=$(echo "$art" | tr '[:upper:]' '[:lower:]')
+elif [[ ( -f "$ARG_B" ) && ( -r "$ARG_B" ) ]]; then 
+    art="$ARG_B"
+elif wget -O /tmp/aa.cover.tmp -c "$ARG_B" &> /dev/null; then 
+    art="/tmp/aa.cover.tmp"; IS_TEMP=true
+else 
+    echo "Cannot access '$ARG_B'"
+    exit 3
+    fi
+    
+# CHECKING IMAGE TYPE AND CONVERTING IF NEEDED --------------------------------
+art_lowercase=$(echo "$art" | tr '[:upper:]' '[:lower:]')
+if [[ "$art_lowercase" =~ $weird_image_rx ]]; then
+	conv_art="${art%.*}\.$RANDOM\.${art##*.}"
+	convert "$art" -format jpg -quality 95 "$conv_art"
+	IS_TEMP=true
+elif [[ "$art_lowercase" =~ $weird_image_w_alpha_rx ]]; then
+	conv_art="${art%.*}\.$RANDOM\.${art##*.}"
+	convert "$art" -format png "$conv_art"
+	IS_TEMP=true
+elif ! [[ "$art_lowercase" =~ $image_rx ]]; then
+    if [[ $(xdg-mime query filetype "$art") =~ ^image/(jpeg|png)$ ]]; then
+        echo "'$ARG_B' is not supported"
+    else
+	    echo "'$ARG_B' is not an image"
+	    fi
+	exit 9
+	fi
 
-	if [[ "$art_lowercase" =~ $weird_image_rx ]]; then
-		conv_art="${art%.*}\.$RANDOM\.${art##*.}"
-		convert "$art" -format jpg -quality 95 "$conv_art"
-		IS_TEMP=true
-	elif [[ "$art_lowercase" =~ $weird_image_w_alpha_rx ]]; then
-		conv_art="${art%.*}\.$RANDOM\.${art##*.}"
-		convert "$art" -format png "$conv_art"
-		IS_TEMP=true
-	elif ! [[ ( "$art_lowercase" =~ ^.*\.((jpe?|pn)g|jpe)$ ) || ( $(xdg-mime query filetype "$art") =~ ^image/(jpeg|png)$ ) ]]; then
-		echo "'$ARG_B' is not an image"
-		exit 9
+# CHECKING IMAGE SIZE AND SCALING IF NEEDED -----------------------------------
+W=$(identify -ping -format '%W\n%H' "$art" | sed '1q;d')
+H=$(identify -ping -format '%W\n%H' "$art" | sed '2q;d')
+if [[ $W -ge $H ]]; then IS_SQUARE=$((W / ((W - H) + 1)))
+elif [[ $H -gt $W ]]; then IS_SQUARE=$((H / ((H - W) + 1))); fi	
+if [[ ( "$IS_SQUARE" -lt 100 ) && ( "$OK_NONSQUARE" == false ) ]]; then
+    printf "Choosen image is not square:\n$ARG_B\n"
+	read -p "Are you sure this is the right one? [Y/n] " buffer
+	if [[ "$buffer" == [Nn]* ]]; then exit 0; fi
+	if hash gimp; then
+		read -p "Do you want to open it on GIMP for some adjusts? [y/N] " buffer
+		if [[ "$buffer" == [Yy]* ]]; then gimp "$art"; fi
 		fi
-	if [[ $width -ge $height ]]; then IS_SQUARE=$((width / ((width - height) + 1)))
-	elif [[ $height -gt $width ]]; then IS_SQUARE=$((height / ((height - width) + 1))); fi
-	if [[ "$IS_SQUARE" -lt 100 ]]; then
-		read -p "Choosen image is not a square, are you sure this is the right one? [Y/n] " buffer
-		if [[ "$buffer" == [Nn]* ]]; then exit 0; fi
-		if hash gimp; then
-			read -p "Do you want to open it on GIMP for some adjusts? [y/N] " buffer
-			if [[ "$buffer" == [Yy]* ]]; then gimp "$art"; fi
-			fi
-		fi
-	if [[ ( $width -gt 500 ) || ( $height -gt 500 ) ]]; then
-		echo "Big image... [$width x $height]"
-		resized_art="${art%.*}.$RANDOM.${art##*.}"
-		if [[ "$IS_SQUARE" -ge 100 ]]; then echo '[]'; convert "$art" -resize 500x500\! "$resized_art"
-		elif [[ $width -gt $height ]]; then convert "$art" -scale 500x "$resized_art"
-		else convert "$art" -scale x500 "$resized_art"; fi
-		if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
-		art="$resized_art"
-		IS_TEMP=true
-	elif [[ ( $width -lt 499 ) || ( $height -lt 499 ) ]]; then
-		echo "Small image... [$width x $height]"
-		exit 11
-		fi
+	fi
+if [[ ( $W -gt 500 ) || ( $H -gt 500 ) ]]; then
+	echo "Big image... [$W x $H]"
+	resized_art="${art%.*}.$RANDOM.${art##*.}"
+	if [[ "$IS_SQUARE" -ge 100 ]]; then 
+	    echo '[]'
+	    convert "$art" -resize 500x500\! "$resized_art"
+	elif [[ $W -gt $H ]]; then 
+	    convert "$art" -scale 500x "$resized_art"
+	else 
+	    convert "$art" -scale x500 "$resized_art"
+	    fi
+	if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
+	art="$resized_art"
+	IS_TEMP=true
+elif [[ ( $W -lt 499 ) || ( $H -lt 499 ) ]]; then
+	echo "Small image... [$W x $H]"
+	exit 11
 	fi
 
 # OPTIMIZING JPEG COVER IMAGES ------------------------------------------------
@@ -192,7 +213,7 @@ while read -r buffer; do
 
 # AUTO-RENAMING AND MOVING COVER IMAGE IF WANTED ------------------------------
 if [[ "$MOVE_ART" == true ]]; then
-    AUTO_ART="${art%/*}.${art##*.}"
+    AUTO_ART="${ARG_B%/*}.${ARG_B##*.}"
     AUTO_ART="${AUTO_ART##*/}"
     mv -f "$art" "${ARG_A%/*}/$AUTO_ART"
     fi
