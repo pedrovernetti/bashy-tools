@@ -15,28 +15,28 @@ else printf "'$1' is not an audio file\n"; exit 8; fi
 declare -r SUFFIX="${FILE##*.}"
 declare -r CODEC=$(mediainfo --language=raw --full --inform="Audio;%Codec%" "$FILE" | tr '[:upper:]' '[:lower:]')
 if   [[ ( "$SUFFIX" =~ ^[Aa][Pp][Ee]$ ) || ( "$CODEC" =~ ^(ape|monkey.*)$ ) ]]; then
-	FORMAT="ape"
-	if ! dpkg -l monkeys-audio &> /dev/null; then sudo apt-get install monkeys-audio; fi
+    FORMAT="ape"
+    if ! dpkg -l monkeys-audio &> /dev/null; then sudo apt-get install monkeys-audio; fi
 elif [[ ( "$SUFFIX" =~ ^[Ff][Ll][Aa][Cc]$ ) || ( "$CODEC" =~ ^f(lac|ree\ lossless\ audio.*)$ ) ]]; then
-	FORMAT="flac"
-	if ! dpkg -l flac &> /dev/null; then sudo apt-get install flac; fi
+    FORMAT="flac"
+    if ! dpkg -l flac &> /dev/null; then sudo apt-get install flac; fi
 elif [[ ( "$SUFFIX" =~ ^[Ww][Vv][Pp]?$ ) || ( "$CODEC" =~ ^wav(pack)?$ ) ]]; then
-	FORMAT="wv"
-	if ! dpkg -l wavpack &> /dev/null; then sudo apt-get install wavpack; fi
+    FORMAT="wv"
+    if ! dpkg -l wavpack &> /dev/null; then sudo apt-get install wavpack; fi
 elif [[ "$SUFFIX" =~ ^[Ww][Aa][Vv][Ee]?$ ]]; then 
-	FORMAT="wav"
+    FORMAT="wav"
 elif [[ "$CODEC" =~ ^a(lac|pple\ lossless.*)$ ]]; then 
-	FORMAT="alac"
+    FORMAT="alac"
 elif [[ "$SUFFIX" =~ ^[Tt][Tt][Aa]$ ]]; then 
-	FORMAT="tta"
-	if ! dpkg -l ttaenc &> /dev/null; then sudo apt-get install ttaenc; fi
+    FORMAT="tta"
+    if ! dpkg -l ttaenc &> /dev/null; then sudo apt-get install ttaenc; fi
 elif [[ "$SUFFIX" =~ ^[Aa][Ii][Ff][Ff]?$ ]]; then 
-	FORMAT="aiff"
-	if ! dpkg -l sox &> /dev/null; then sudo apt-get install sox; fi
+    FORMAT="aiff"
+    if ! dpkg -l sox &> /dev/null; then sudo apt-get install sox; fi
 elif [[ "$SUFFIX" =~ ^[Tt][Tt][Aa]$ ]]; then 
-	FORMAT="tta"
-	if ! dpkg -l ttaenc &> /dev/null; then sudo apt-get install ttaenc; fi
-	fi
+    FORMAT="tta"
+    if ! dpkg -l ttaenc &> /dev/null; then sudo apt-get install ttaenc; fi
+    fi
 
 # CHANGE THE $PWD TO THE INPUT FILE'S LOCATION
 declare -r OLD_PWD="$PWD"

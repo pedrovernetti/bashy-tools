@@ -15,28 +15,28 @@
 # HELP ------------------------------------------------------------------------
 help_message ()
 {
-	printf "Usage: ${0##*/} [OPTIONS] MUSIC_ALBUM_FOLDER [MUSIC_ALBUM_COVER]\n\n"
-	printf "  Inserts the given Album Cover into every audio file inside the given folder.\n\n"
-	if [[ "$1" == "full" ]]; then
-		printf "  Options:\n\n"
-		printf "  -h        print this help message and exit\n"
-		printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
-		printf "  -C        auto-rename and move the cover image file\n"
-		printf "  -i        try using a cover image file inside the folder\n"
-		printf "  -J        remove known junk files inside the folder\n"
-		printf "  -Q        do not complain about non-square cover images\n\n"
-		printf "  -T        do not clear the thumbnails cache after running\n\n"
-	    printf "  Cover image must be of at least 500x500 and supported by imagemagick.\n"
-	    printf "  Images larger than 500x500 are automaticaly copied and scaled down.\n"
-	    printf "  The metadata inside the images are automaticaly erased to save space.\n"
-		printf "  Non-JPEG/PNG cover images are converted before being attached.\n"
-	    printf "  Previous album arts are NOT removed from mp4-style audio files.\n"
-	    printf "  Audio format detection relies on file extensions.\n"
-	    printf "  Thumbnails cache is cleared in the end, so that the changes can be noticed.\n\n"
-	    exit 0
-	else
-		exit 1
-		fi
+    printf "Usage: ${0##*/} [OPTIONS] MUSIC_ALBUM_FOLDER [MUSIC_ALBUM_COVER]\n\n"
+    printf "  Inserts the given Album Cover into every audio file inside the given folder.\n\n"
+    if [[ "$1" == "full" ]]; then
+        printf "  Options:\n\n"
+        printf "  -h        print this help message and exit\n"
+        printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
+        printf "  -C        auto-rename and move the cover image file\n"
+        printf "  -i        try using a cover image file inside the folder\n"
+        printf "  -J        remove known junk files inside the folder\n"
+        printf "  -Q        do not complain about non-square cover images\n\n"
+        printf "  -T        do not clear the thumbnails cache after running\n\n"
+        printf "  Cover image must be of at least 500x500 and supported by imagemagick.\n"
+        printf "  Images larger than 500x500 are automaticaly copied and scaled down.\n"
+        printf "  The metadata inside the images are automaticaly erased to save space.\n"
+        printf "  Non-JPEG/PNG cover images are converted before being attached.\n"
+        printf "  Previous album arts are NOT removed from mp4-style audio files.\n"
+        printf "  Audio format detection relies on file extensions.\n"
+        printf "  Thumbnails cache is cleared in the end, so that the changes can be noticed.\n\n"
+        exit 0
+    else
+        exit 1
+        fi
 }
 
 # INSTALLING DEPENDENCIES IF DEMANDED -----------------------------------------
@@ -136,15 +136,15 @@ if [[ "$COVER_IS_INSIDE" == true ]]; then
     if [[ "$possible_covers_count" -eq 1 ]]; then
         ARG_B="$cover_found"
     else
-		echo "no cover image candidate found"
+        echo "no cover image candidate found"
         exit 20
         fi
     fi
         
 # PREPARING TO REMOVE THE COVER WHEN WANTED -----------------------------------
 if [[ ( "$ARG_B" =~ $remove_cover_rx ) || ( "$REMOVE_COVER" == true ) ]]; then
-	art="REMOVE_ALL"
-	
+    art="REMOVE_ALL"
+    
 # DEALING WITH THE COVER IMAGE ------------------------------------------------
 elif [[ ( -f "$ARG_B" ) && ( -r "$ARG_B" ) ]]; then 
     art="$ARG_B"
@@ -158,54 +158,54 @@ else
 # CHECKING IMAGE TYPE AND CONVERTING IF NEEDED --------------------------------
 art_lowercase=$(echo "$art" | tr '[:upper:]' '[:lower:]')
 if [[ "$art_lowercase" =~ $weird_image_rx ]]; then
-	conv_art="${art%.*}\.$RANDOM\.${art##*.}"
-	convert "$art" -format jpg -quality 95 "$conv_art"
-	IS_TEMP=true
+    conv_art="${art%.*}\.$RANDOM\.${art##*.}"
+    convert "$art" -format jpg -quality 95 "$conv_art"
+    IS_TEMP=true
 elif [[ "$art_lowercase" =~ $weird_image_w_alpha_rx ]]; then
-	conv_art="${art%.*}\.$RANDOM\.${art##*.}"
-	convert "$art" -format png "$conv_art"
-	IS_TEMP=true
+    conv_art="${art%.*}\.$RANDOM\.${art##*.}"
+    convert "$art" -format png "$conv_art"
+    IS_TEMP=true
 elif ! [[ "$art_lowercase" =~ $image_rx ]]; then
     if [[ $(xdg-mime query filetype "$art") =~ ^image/(jpeg|png)$ ]]; then
         echo "'$ARG_B' is not supported"
     else
-	    echo "'$ARG_B' is not an image"
-	    fi
-	exit 9
-	fi
+        echo "'$ARG_B' is not an image"
+        fi
+    exit 9
+    fi
 
 # CHECKING IMAGE SIZE AND SCALING IF NEEDED -----------------------------------
 W=$(identify -ping -format '%W\n%H' "$art" | sed '1q;d')
 H=$(identify -ping -format '%W\n%H' "$art" | sed '2q;d')
 if [[ $W -ge $H ]]; then IS_SQUARE=$((W / ((W - H) + 1)))
-elif [[ $H -gt $W ]]; then IS_SQUARE=$((H / ((H - W) + 1))); fi	
+elif [[ $H -gt $W ]]; then IS_SQUARE=$((H / ((H - W) + 1))); fi    
 if [[ ( "$IS_SQUARE" -lt 100 ) && ( "$OK_NONSQUARE" == false ) ]]; then
     printf "Choosen image is not square:\n$ARG_B\n"
-	read -p "Are you sure this is the right one? [Y/n] " buffer
-	if [[ "$buffer" == [Nn]* ]]; then exit 0; fi
-	if hash gimp; then
-		read -p "Do you want to open it on GIMP for some adjusts? [y/N] " buffer
-		if [[ "$buffer" == [Yy]* ]]; then gimp "$art"; fi
-		fi
-	fi
+    read -p "Are you sure this is the right one? [Y/n] " buffer
+    if [[ "$buffer" == [Nn]* ]]; then exit 0; fi
+    if hash gimp; then
+        read -p "Do you want to open it on GIMP for some adjusts? [y/N] " buffer
+        if [[ "$buffer" == [Yy]* ]]; then gimp "$art"; fi
+        fi
+    fi
 if [[ ( $W -gt 500 ) || ( $H -gt 500 ) ]]; then
-	echo "Big image... [$W x $H]"
-	resized_art="${art%.*}.$RANDOM.${art##*.}"
-	if [[ "$IS_SQUARE" -ge 100 ]]; then 
-	    echo '[]'
-	    convert "$art" -resize 500x500\! "$resized_art"
-	elif [[ $W -gt $H ]]; then 
-	    convert "$art" -scale 500x "$resized_art"
-	else 
-	    convert "$art" -scale x500 "$resized_art"
-	    fi
-	if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
-	art="$resized_art"
-	IS_TEMP=true
+    echo "Big image... [$W x $H]"
+    resized_art="${art%.*}.$RANDOM.${art##*.}"
+    if [[ "$IS_SQUARE" -ge 100 ]]; then 
+        echo '[]'
+        convert "$art" -resize 500x500\! "$resized_art"
+    elif [[ $W -gt $H ]]; then 
+        convert "$art" -scale 500x "$resized_art"
+    else 
+        convert "$art" -scale x500 "$resized_art"
+        fi
+    if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
+    art="$resized_art"
+    IS_TEMP=true
 elif [[ ( $W -lt 499 ) || ( $H -lt 499 ) ]]; then
-	echo "Small image... [$W x $H]"
-	exit 11
-	fi
+    echo "Small image... [$W x $H]"
+    exit 11
+    fi
 
 # OPTIMIZING JPEG COVER IMAGES ------------------------------------------------
 if [[ "$art" == *.jpg ]]; then jpegoptim --strip-all "$art"; fi
@@ -216,25 +216,25 @@ audio_content=$(find "$ARG_A" -regextype posix-extended \
 
 # EMBEDDING COVER IMAGES INTO AUDIO FILES -------------------------------------
 while read -r buffer; do
-	if [[ "$buffer" =~ ^.*\.([Mm][Pp][23]|[Aa][Aa][Cc])$ ]]; then
-		eyeD3 -v --to-v2.3 --preserve-file-times --remove-all-images "$buffer"
-		eyeD3 -v --preserve-file-times --add-image="$art":FRONT_COVER "$buffer"
-	elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
-		AtomicParsley "$buffer" --artwork "$art"
-		mv -f "${buffer%.*}-temp-"*.m4? "$buffer"
+    if [[ "$buffer" =~ ^.*\.([Mm][Pp][23]|[Aa][Aa][Cc])$ ]]; then
+        eyeD3 -v --to-v2.3 --preserve-file-times --remove-all-images "$buffer"
+        eyeD3 -v --preserve-file-times --add-image="$art":FRONT_COVER "$buffer"
+    elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
+        AtomicParsley "$buffer" --artwork "$art"
+        mv -f "${buffer%.*}-temp-"*.m4? "$buffer"
     elif [[ "$buffer" =~ ^.*\.[Ff][Ll][Aa][Cc]$ ]]; then
         metaflac --remove --block-type=PICTURE "$buffer"
         metaflac --import-picture-from="$art" "$buffer"
     elif [[ "$buffer" =~ ^.*\.[Oo][Gg][AaGg]$ ]]; then
         echo "Ogg files not supported"
-	elif [[ "$buffer" =~ ^.*\.([Mm][Pp][+Cc]|[Aa][Pp][Ee])$ ]]; then
-	    echo "APEv2-tagged files not supported"	
-	elif [[ "$buffer" =~ ^.*\.[Ww][Vv]$ ]]; then
+    elif [[ "$buffer" =~ ^.*\.([Mm][Pp][+Cc]|[Aa][Pp][Ee])$ ]]; then
+        echo "APEv2-tagged files not supported"    
+    elif [[ "$buffer" =~ ^.*\.[Ww][Vv]$ ]]; then
         echo "WavPack files not supported"
-	elif [[ "$buffer" =~ ^.*\.([Aa][Ss][Ff]|[Ww][Mm][Aa])$ ]]; then
+    elif [[ "$buffer" =~ ^.*\.([Aa][Ss][Ff]|[Ww][Mm][Aa])$ ]]; then
         echo "Windows Media files not supported"
-	    fi
-	done <<< "$audio_content"
+        fi
+    done <<< "$audio_content"
 
 # AUTO-RENAMING AND MOVING COVER IMAGE IF WANTED ------------------------------
 if [[ "$MOVE_ART" == true ]]; then

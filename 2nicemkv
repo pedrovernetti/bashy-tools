@@ -17,221 +17,221 @@
 ## Prints a help message (use -h option to properly read it)
 help_message ()
 {
-	printf "Usage: ${0##*/} [OPTIONS] -i INPUT_FILE [OPTIONS]\n\n"
-	if [[ "$1" == "full" ]]; then
-		printf "  Options:\n\n"
-		printf "  -h        print this help message and exit\n"
-		printf "  -hl       print the list of supported languages\n"
-		printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
-		printf "  -?        print the low-level command lines which \033[1mwould be\033[0m called\n\n"
-		printf "  -A        convert audio to AAC [#TODO]\n"
-		printf "  -a \033[2mFILE\033[0m   take audio from 'FILE' and \033[1mnot\033[0m from the main input\n"
-		printf "  -c \033[2mIMG\033[0m    embed 'IMG' to the output as its cover/thumbnail\n"
-		printf "  -e        replace the video codec name with that of the encoding library\n"
-		printf "  -i \033[2mFILE\033[0m   take audio, video and metadata from 'FILE' (\"main input\")\n"
-		printf "  -L \033[2mLNG\033[0m    set 'LNG' as the video language\n"
-		printf "  -l \033[2mLNG\033[0m    set 'LNG' as the audio language\n"
-		printf "  -n        like '-O', but \033[1mnothing\033[0m is done other than renaming\n"
-		printf "  -o \033[2mPATH\033[0m   save the generated output to 'PATH'\n"
-		printf "  -O        name the output file according to its title\n"
-		printf "  -R        remove every taken file (main input, subtitles, images) at the end\n"
-		printf "  -r        remove the file set as the main input at the end\n"
-		printf "  -S        take subtitles from the main input, if there is any\n"
-		printf "  -s \033[2mLNG\033[0m:\033[2mST\033[0m embed subtitles from 'ST' in the output\n"
-		printf "  -t \033[2mTITL\033[0m   set 'TITL' as the title (metadata) of the output\n"
-		printf "  -T        like '-t', but takes the filename of the main input as the title\n\n"
-		printf "  \033[1;30mFILE\033[0m must be a mkvtoolnix-supported audio/video file\n"
-		printf "  \033[1;30mIMG\033[0m  must be a JPEG or any imagemagick-supported image file\n"
-		printf "  \033[1;30mPATH\033[0m must be a valid file path to write a Matroska file to\n"
-		printf "  \033[1;30mLNG\033[0m  must be the english name or the ISO 639-2B code of a language\n"
-		printf "  \033[1;30mST\033[0m   must be a SubRip (.srt) or any ffmpeg-supported subtitles file\n"
-		printf "  \033[1;30mTITL\033[0m can be any short piece of text\n\n" 
-		printf "Non-JPEG cover images are converted to JPEG before being attached,\n"
-		printf "as non-SubRip or non-UTF8 subtitles are all converted to UTF8 SubRip\n"
-		printf "before being embedded (uncommon text encodings may not be recognized).\n\n"
-		printf "If a subtitles file is cleanly named after the ISO 639-2B code of its\n"
-		printf "language, there is no need to make its language explicit in the options.\n\n"
-		printf "Examples:\n\n\033[3m${0##*/} -c 'poster.jpg' -s english:'movie.srt' -i 'movie.mp4'\033[0m\n"
-		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'movie.mkv' with audio and video\n"
-		printf "from 'movie.mp4', 'poster.jpg' as its thumbnail and\n"
-		printf "embedded english subtitles extracted from 'movie.srt'.\033[0m\n\n"
-		printf "\033[3m${0##*/} -t 'Trailer' -s 'gre.srt' -s 'ger.ssa' -i 'trlr.mp4' -O\033[0m\n"
-		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named after its content (something like\n"
-		printf "'Trailer 720p AVC AAC.mkv') with audio and video from\n"
-		printf "'trlr.mp4', no specific thumbnail, 'Trailer' as its title\n"
-		printf "and embedded greek and german subtitles extracted from\n"
-		printf "'gre.srt' and 'ger.srt', respectively.\033[0m\n\n"
-		printf "\033[3m${0##*/} -l por -s eng:'sdh.srt' -i 'video.avi' -o 'out.mkv'\033[0m\n"
-		printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'out.mkv' with audio and video\n"
-		printf "from 'video.avi', portuguese as its audio language\n"
-		printf "embedded english subtitles extracted from 'sdh.srt'.\033[0m\n"
-	elif [[ "$1" == "languages" ]]; then
-		printf "ISO 639-2B and ISO 639-1 codes, plus english names for every supported\n"
-		printf "language are listed below.\n"
-		printf "\033[2mAny of these will be understood, but ISO 639-2B (the 3-letters code)\n"
-		printf "is prefered, since it better avoids ambiguity.\033[0m\n\n"
-		printf " 639-2B\t639-1\tenglish name\n\n"
-		printf "$ISO639_REF\n" | sed -r \
-			-e 's/^(.*)[[:space:]]+\|[[:space:]]+(...)[[:space:]]+\|(.*)$/ \2\t\3\t\1/;' \
-			-e 's/^(.*\t.*\t.{50}).{4,}/\1.../' | sort | GREP_COLOR='01' egrep -i --color=always '^ ....'
-	else
-		exit 1
-		fi
-	printf "\n"
-	exit 0
+    printf "Usage: ${0##*/} [OPTIONS] -i INPUT_FILE [OPTIONS]\n\n"
+    if [[ "$1" == "full" ]]; then
+        printf "  Options:\n\n"
+        printf "  -h        print this help message and exit\n"
+        printf "  -hl       print the list of supported languages\n"
+        printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
+        printf "  -?        print the low-level command lines which \033[1mwould be\033[0m called\n\n"
+        printf "  -A        convert audio to AAC [#TODO]\n"
+        printf "  -a \033[2mFILE\033[0m   take audio from 'FILE' and \033[1mnot\033[0m from the main input\n"
+        printf "  -c \033[2mIMG\033[0m    embed 'IMG' to the output as its cover/thumbnail\n"
+        printf "  -e        replace the video codec name with that of the encoding library\n"
+        printf "  -i \033[2mFILE\033[0m   take audio, video and metadata from 'FILE' (\"main input\")\n"
+        printf "  -L \033[2mLNG\033[0m    set 'LNG' as the video language\n"
+        printf "  -l \033[2mLNG\033[0m    set 'LNG' as the audio language\n"
+        printf "  -n        like '-O', but \033[1mnothing\033[0m is done other than renaming\n"
+        printf "  -o \033[2mPATH\033[0m   save the generated output to 'PATH'\n"
+        printf "  -O        name the output file according to its title\n"
+        printf "  -R        remove every taken file (main input, subtitles, images) at the end\n"
+        printf "  -r        remove the file set as the main input at the end\n"
+        printf "  -S        take subtitles from the main input, if there is any\n"
+        printf "  -s \033[2mLNG\033[0m:\033[2mST\033[0m embed subtitles from 'ST' in the output\n"
+        printf "  -t \033[2mTITL\033[0m   set 'TITL' as the title (metadata) of the output\n"
+        printf "  -T        like '-t', but takes the filename of the main input as the title\n\n"
+        printf "  \033[1;30mFILE\033[0m must be a mkvtoolnix-supported audio/video file\n"
+        printf "  \033[1;30mIMG\033[0m  must be a JPEG or any imagemagick-supported image file\n"
+        printf "  \033[1;30mPATH\033[0m must be a valid file path to write a Matroska file to\n"
+        printf "  \033[1;30mLNG\033[0m  must be the english name or the ISO 639-2B code of a language\n"
+        printf "  \033[1;30mST\033[0m   must be a SubRip (.srt) or any ffmpeg-supported subtitles file\n"
+        printf "  \033[1;30mTITL\033[0m can be any short piece of text\n\n" 
+        printf "Non-JPEG cover images are converted to JPEG before being attached,\n"
+        printf "as non-SubRip or non-UTF8 subtitles are all converted to UTF8 SubRip\n"
+        printf "before being embedded (uncommon text encodings may not be recognized).\n\n"
+        printf "If a subtitles file is cleanly named after the ISO 639-2B code of its\n"
+        printf "language, there is no need to make its language explicit in the options.\n\n"
+        printf "Examples:\n\n\033[3m${0##*/} -c 'poster.jpg' -s english:'movie.srt' -i 'movie.mp4'\033[0m\n"
+        printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'movie.mkv' with audio and video\n"
+        printf "from 'movie.mp4', 'poster.jpg' as its thumbnail and\n"
+        printf "embedded english subtitles extracted from 'movie.srt'.\033[0m\n\n"
+        printf "\033[3m${0##*/} -t 'Trailer' -s 'gre.srt' -s 'ger.ssa' -i 'trlr.mp4' -O\033[0m\n"
+        printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named after its content (something like\n"
+        printf "'Trailer 720p AVC AAC.mkv') with audio and video from\n"
+        printf "'trlr.mp4', no specific thumbnail, 'Trailer' as its title\n"
+        printf "and embedded greek and german subtitles extracted from\n"
+        printf "'gre.srt' and 'ger.srt', respectively.\033[0m\n\n"
+        printf "\033[3m${0##*/} -l por -s eng:'sdh.srt' -i 'video.avi' -o 'out.mkv'\033[0m\n"
+        printf "\033[2;32mcreates an \033[2;3;32m.mkv\033[0;2;32m named 'out.mkv' with audio and video\n"
+        printf "from 'video.avi', portuguese as its audio language\n"
+        printf "embedded english subtitles extracted from 'sdh.srt'.\033[0m\n"
+    elif [[ "$1" == "languages" ]]; then
+        printf "ISO 639-2B and ISO 639-1 codes, plus english names for every supported\n"
+        printf "language are listed below.\n"
+        printf "\033[2mAny of these will be understood, but ISO 639-2B (the 3-letters code)\n"
+        printf "is prefered, since it better avoids ambiguity.\033[0m\n\n"
+        printf " 639-2B\t639-1\tenglish name\n\n"
+        printf "$ISO639_REF\n" | sed -r \
+            -e 's/^(.*)[[:space:]]+\|[[:space:]]+(...)[[:space:]]+\|(.*)$/ \2\t\3\t\1/;' \
+            -e 's/^(.*\t.*\t.{50}).{4,}/\1.../' | sort | GREP_COLOR='01' egrep -i --color=always '^ ....'
+    else
+        exit 1
+        fi
+    printf "\n"
+    exit 0
 }
 
 ## Prints an error (then exits) or warning
 error ()
 {
-	if [[ "$1" == [Ww]* ]]; then printf "\033[1;33m${2//%/%%}\033[0m"
-	elif [[ "$1" == [Cc]* ]]; then printf "\033[1;31m${2//%/%%}\033[0m"; exit $3
-	else printf "${2//%/%%}"; fi
+    if [[ "$1" == [Ww]* ]]; then printf "\033[1;33m${2//%/%%}\033[0m"
+    elif [[ "$1" == [Cc]* ]]; then printf "\033[1;31m${2//%/%%}\033[0m"; exit $3
+    else printf "${2//%/%%}"; fi
 }
 
 ## Installs what is previously needed to run this script
 install_me ()
 {
-	printf "\033[1mDepencies will now be installed...\033[0m\n"
-	sudo sed -i -r '/(mkvtoolnix|bunkus)/d' /etc/apt/sources.list
-	buffer="deb http://mkvtoolnix.download/ubuntu/"$(lsb_release -sc)"/"
-	sudo bash -c "printf \"\\n\\n$buffer ./\" >> /etc/apt/sources.list"
-	sudo bash -c "printf \"\\n$buffer ./\" >> /etc/apt/sources.list"
-	wget -q -O - https://mkvtoolnix.download/gpg-pub-moritzbunkus.txt | \
-		sudo apt-key add -
-	sudo apt-get update
-	sudo apt-get install file grep sed iconv recode
-	sudo apt-get install iso-codes mediainfo mkvtoolnix ffmpeg
-	sudo apt-get install imagemagick jpegoptim mat
-	if [[ "$1" == "full"  ]]; then sudo cp -uv "$0" /usr/bin/2nicemkv; fi
-	exit 0
+    printf "\033[1mDepencies will now be installed...\033[0m\n"
+    sudo sed -i -r '/(mkvtoolnix|bunkus)/d' /etc/apt/sources.list
+    buffer="deb http://mkvtoolnix.download/ubuntu/"$(lsb_release -sc)"/"
+    sudo bash -c "printf \"\\n\\n$buffer ./\" >> /etc/apt/sources.list"
+    sudo bash -c "printf \"\\n$buffer ./\" >> /etc/apt/sources.list"
+    wget -q -O - https://mkvtoolnix.download/gpg-pub-moritzbunkus.txt | \
+        sudo apt-key add -
+    sudo apt-get update
+    sudo apt-get install file grep sed iconv recode
+    sudo apt-get install iso-codes mediainfo mkvtoolnix ffmpeg
+    sudo apt-get install imagemagick jpegoptim mat
+    if [[ "$1" == "full"  ]]; then sudo cp -uv "$0" /usr/bin/2nicemkv; fi
+    exit 0
 }
 
 discard_tmps ()
 {
-	rm -f /tmp/nicemkv_*.utf8 &> /dev/null
-	rm -f /tmp/nicemkv.cover.jpg &> /dev/null
+    rm -f /tmp/nicemkv_*.utf8 &> /dev/null
+    rm -f /tmp/nicemkv.cover.jpg &> /dev/null
 }
 
 # EXTRACING THE MKVTOOLNIX LIST OF SUPPORTED LANGUAGES
 if hash mkvmerge; then 
-	declare -r ISO639_REF=$(mkvmerge --list-languages | \
-				tr '[:upper:]' '[:lower:]' | \
-				sed -r '1d;2d;/.*[^[:lower:] \t|;].*/d;s/[[:space:]]{2,}/ /g;'; \
-				printf "greek | gre | el\nhebrew | heb |\n")
-	fi
+    declare -r ISO639_REF=$(mkvmerge --list-languages | \
+                tr '[:upper:]' '[:lower:]' | \
+                sed -r '1d;2d;/.*[^[:lower:] \t|;].*/d;s/[[:space:]]{2,}/ /g;'; \
+                printf "greek | gre | el\nhebrew | heb |\n")
+    fi
 
 ## Prints the proper ISO-639-3 code for a given language
 lang_code ()
 {
-	local buffer=$(printf "$1" | tr '[:upper:]' '[:lower:]' | \
-				sed -r 's/^([[:lower:]]{3})$/| \1 |/')
-	local buffer=$(printf "$ISO639_REF" | grep "${buffer,,}" | \
-			head -n1 | sed -r 's/^.*\| ?(...) ?\|.*$/\1/')
-	if [[ "$buffer" == "" ]]; then printf "UND"
-	else printf "$buffer"; fi
+    local buffer=$(printf "$1" | tr '[:upper:]' '[:lower:]' | \
+                sed -r 's/^([[:lower:]]{3})$/| \1 |/')
+    local buffer=$(printf "$ISO639_REF" | grep "${buffer,,}" | \
+            head -n1 | sed -r 's/^.*\| ?(...) ?\|.*$/\1/')
+    if [[ "$buffer" == "" ]]; then printf "UND"
+    else printf "$buffer"; fi
 }
 
 ## Converts the given file to UTF-8 encoding
 to_utf8 ()
 {
-	if ! hash iconv &> /dev/null; then error critical "iconv is missing...\n" 106; fi
-	if ! hash recode &> /dev/null; then error critical "recode is missing...\n" 107; fi
-	SUB_CS_=$(file -b "$1" | tr '[:lower:]' '[:upper:]')
-	if [[ $(printf "$SUB_CS_" | grep -Ec 'UTF.?8') -gt 0 ]]; then SUB_CS_="UTF-8"; return; fi
+    if ! hash iconv &> /dev/null; then error critical "iconv is missing...\n" 106; fi
+    if ! hash recode &> /dev/null; then error critical "recode is missing...\n" 107; fi
+    SUB_CS_=$(file -b "$1" | tr '[:lower:]' '[:upper:]')
+    if [[ $(printf "$SUB_CS_" | grep -Ec 'UTF.?8') -gt 0 ]]; then SUB_CS_="UTF-8"; return; fi
 
-	west_rx='^(eng|(fr|sw|ic|qu)e|(ge|af|no|ca)r|p(o[br]|ap)|s[np]a|d(an|ut)|gsw|(fi|hu)n|'
-	west_rx+='i(nd|ta)|a(rg|st)|baq|grn|l(at|tz)|mlg|n(ah|ds|no|ob)|orm|t(up|pi)|xho|zul|cp[efp])$'
-	
-	printf "\033[2;3;33mGuessing the charset used in '${1##*/}' ...\033[0;0m\n"
-	if [[ "$2" =~ $west_rx ]]; then SUB_CS_="WINDOWS-1252" # western latin
-	elif [[ "$2" =~ ^(ara|per|fas|urd)$ ]]; then SUB_CS_="WINDOWS-1256" # arabic
-	elif [[ "$2" =~ ^(cze|pol|rum|h(rv|un)|sl[ov]|bos)$ ]]; then SUB_CS_="WINDOWS-1250" # eastern-european
-	elif [[ "$2" =~ ^(rus|bul|arm|kaz|mac)$ ]]; then SUB_CS_="WINDOWS-1251" # cyrillic
-	elif [[ "$2" == kor ]]; then SUB_CS_="EUC-KR" # korean
-	elif [[ "$2" == vie ]]; then SUB_CS_="WINDOWS-1258" # vietnamese
-	elif [[ "$2" == tur ]]; then SUB_CS_="WINDOWS-1254" # turkish
-	elif [[ "$2" == tha ]]; then SUB_CS_="WINDOWS-874" # thai
-	elif [[ "$2" =~ ^(gr[ec]|ell)$ ]]; then SUB_CS_="WINDOWS-1253" # greek
-	elif [[ "$2" =~ ^(heb|yid)$ ]]; then SUB_CS_="WINDOWS-1255" # hebrew
-	#elif [[ "$2" =~ ^(l(av|it))$ ]]; then local SUB_CS_="WINDOWS-1257" # baltic :: 1250 vs 1257
-	#elif [[ "$2" == chi ]]; then SUB_CS_="BIG5" # chinese :: BIG5 vs GBK vs 936
-	# devanagari
-	# est :: 1252 vs 1257 
-	# srp :: 1250 vs 1251
-	# swa :: 1252 vs 1256
-	# ukr :: 1252 vs 1251
-	else TO_UTF8_STATUS_="bad"; fi
+    west_rx='^(eng|(fr|sw|ic|qu)e|(ge|af|no|ca)r|p(o[br]|ap)|s[np]a|d(an|ut)|gsw|(fi|hu)n|'
+    west_rx+='i(nd|ta)|a(rg|st)|baq|grn|l(at|tz)|mlg|n(ah|ds|no|ob)|orm|t(up|pi)|xho|zul|cp[efp])$'
+    
+    printf "\033[2;3;33mGuessing the charset used in '${1##*/}' ...\033[0;0m\n"
+    if [[ "$2" =~ $west_rx ]]; then SUB_CS_="WINDOWS-1252" # western latin
+    elif [[ "$2" =~ ^(ara|per|fas|urd)$ ]]; then SUB_CS_="WINDOWS-1256" # arabic
+    elif [[ "$2" =~ ^(cze|pol|rum|h(rv|un)|sl[ov]|bos)$ ]]; then SUB_CS_="WINDOWS-1250" # eastern-european
+    elif [[ "$2" =~ ^(rus|bul|arm|kaz|mac)$ ]]; then SUB_CS_="WINDOWS-1251" # cyrillic
+    elif [[ "$2" == kor ]]; then SUB_CS_="EUC-KR" # korean
+    elif [[ "$2" == vie ]]; then SUB_CS_="WINDOWS-1258" # vietnamese
+    elif [[ "$2" == tur ]]; then SUB_CS_="WINDOWS-1254" # turkish
+    elif [[ "$2" == tha ]]; then SUB_CS_="WINDOWS-874" # thai
+    elif [[ "$2" =~ ^(gr[ec]|ell)$ ]]; then SUB_CS_="WINDOWS-1253" # greek
+    elif [[ "$2" =~ ^(heb|yid)$ ]]; then SUB_CS_="WINDOWS-1255" # hebrew
+    #elif [[ "$2" =~ ^(l(av|it))$ ]]; then local SUB_CS_="WINDOWS-1257" # baltic :: 1250 vs 1257
+    #elif [[ "$2" == chi ]]; then SUB_CS_="BIG5" # chinese :: BIG5 vs GBK vs 936
+    # devanagari
+    # est :: 1252 vs 1257 
+    # srp :: 1250 vs 1251
+    # swa :: 1252 vs 1256
+    # ukr :: 1252 vs 1251
+    else TO_UTF8_STATUS_="bad"; fi
 
-	local out
-	if [[ "$TEST_MODE_" == false ]]; then
-		if out=$(iconv -f "$SUB_CS_" -t UTF8 "$1" -o "/tmp/nicemkv_${1##*/}.utf8" 2>&1); then
-			PREVIOUS__LINES_+="iconv -f \"$SUB_CS_\" -t UTF8 \"$1\" -o \"/tmp/nicemkv_${1##*/}.utf8\"; "
-			OPS_OUT_+="$out"
-		else
-			cp -L -u "$1" "/tmp/nicemkv_${1##*/}.utf8" &> /dev/null
-			if out=$(recode "${SUB_CS_,,}"..UTF-8 "/tmp/nicemkv_${1##*/}.utf8" 2>&1); then
-				PREVIOUS__LINES_+="cp -L -u \"$1\" \"/tmp/nicemkv_${1##*/}.utf8\"; "
-				PREVIOUS__LINES_+="recode \"${SUB_CS_,,}\"..UTF-8 \"/tmp/nicemkv_${1##*/}.utf8\"; "
-				OPS_OUT_+="$out"
-			else 
-				rm -f "/tmp/nicemkv_${1##*/}.utf8" &> /dev/null; TO_UTF8_STATUS_="bad"
-				fi
-			fi
-		fi
+    local out
+    if [[ "$TEST_MODE_" == false ]]; then
+        if out=$(iconv -f "$SUB_CS_" -t UTF8 "$1" -o "/tmp/nicemkv_${1##*/}.utf8" 2>&1); then
+            PREVIOUS__LINES_+="iconv -f \"$SUB_CS_\" -t UTF8 \"$1\" -o \"/tmp/nicemkv_${1##*/}.utf8\"; "
+            OPS_OUT_+="$out"
+        else
+            cp -L -u "$1" "/tmp/nicemkv_${1##*/}.utf8" &> /dev/null
+            if out=$(recode "${SUB_CS_,,}"..UTF-8 "/tmp/nicemkv_${1##*/}.utf8" 2>&1); then
+                PREVIOUS__LINES_+="cp -L -u \"$1\" \"/tmp/nicemkv_${1##*/}.utf8\"; "
+                PREVIOUS__LINES_+="recode \"${SUB_CS_,,}\"..UTF-8 \"/tmp/nicemkv_${1##*/}.utf8\"; "
+                OPS_OUT_+="$out"
+            else 
+                rm -f "/tmp/nicemkv_${1##*/}.utf8" &> /dev/null; TO_UTF8_STATUS_="bad"
+                fi
+            fi
+        fi
 
-	if [[ "$TO_UTF8_STATUS_" == "bad" ]]; then
-		error warning "Something went wrong while converting '$1' to UTF8 or guessing its charset\n"
-		fi
+    if [[ "$TO_UTF8_STATUS_" == "bad" ]]; then
+        error warning "Something went wrong while converting '$1' to UTF8 or guessing its charset\n"
+        fi
 }
 
 # Iterates over the audio tracks of a file, storing information about them on global variables
 iterate_over_audios ()
 {
-	for i in `seq 1 20`; do
-		AUDIO_INFO_=$(mediainfo "$INPUT_" | \
-				sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p')
-		if [[ $(echo "$AUDIO_INFO_" | wc -c) -lt 8 ]]; then break; fi
-		AUDIO_TRACK_=$(echo "$AUDIO_INFO_" | grep -m1 '^ID' | \
-				sed -r 's/^.*:[\t ]+([[:digit:]]{1,2})[^[:graph:]]*$/\1/')
-		AUDIO_TRACK_=$((AUDIO_TRACK_ - 1))
-		AUDIO_COD_=$(echo -n "$AUDIO_INFO_" | grep -m1 '^[Ff]ormat' | sed -r 's/^.*:[\t ]+(.*)$/\1/')
-		AUDIO_COD_="${AUDIO_COD_//[-_]}"
-		AUDIO_CHA_=$(echo -n "$AUDIO_INFO_" | grep -m1 -E '^[Cc]hannel(s|.s.)' | \
-				sed -r 's/^.*:[\t ]+([[:digit:]]+).*$/\1/')
-		AUDIO_BR_=$(echo -n "$AUDIO_INFO_" | grep -E -m1 '^[Bb]it.?[Rr]ate[\t ]+:' | \
-				sed -r 's/^.*:[\t ]+(.*)$/\1/')
-		if [[ "$AUDIO_BR_" == "" ]]; then AUDIO_BR_="? Kbps"; fi
-		AUDIO_SIZE_=$(echo -n "$AUDIO_INFO_" | grep -E -m1 '^[Ss]tream.?[Ss]ize' | sed -r 's/^.*:[\t ]+(.*)$/\1/')
-		if [[ "$AUDIO_SIZE_" == "" ]]; then AUDIO_SIZE_="? B (?%)"; fi
-		buffer=$(echo "$AUDIO_INFO_" | grep -m1 '^Language' | sed -r 's/^.*:[\t ]*([[:alpha:]]+)[^[:graph:]]*$/\1/')
-		if [[ "$buffer" == "" ]]; then buffer="Undefined"; fi
-		printf "\033[2m$AUDIO_TRACK_\t<$buffer>, <$AUDIO_COD_>, "
-		echo -n "<$AUDIO_CHA_ channels>, <$AUDIO_BR_>, <$AUDIO_SIZE_>"
-		ALL_AUDIO_LANGS_[$AUDIO_TRACK_]=$(lang_code "$buffer"); ALL_AUDIO_BRS_[$AUDIO_TRACK_]="$AUDIO_BR_"
-		ALL_AUDIO_CODS_[$AUDIO_TRACK_]="$AUDIO_COD_"; ALL_AUDIO_CHAS_[$AUDIO_TRACK_]="$AUDIO_CHA_"
-		if ! [[ ( "${buffer,,}" == "${AUDIO_LANG_,,}" ) || \
-				( "${ALL_AUDIO_LANGS_[AUDIO_TRACK_]}" == "${AUDIO_LANG_,,}" ) ]]; then
-			AUDIO_TRACK_="NULL"
-		elif [[ "$MANY_AUDIOS_SAME_LANG_" == false ]]; then
-			printf "\n\t\033[7;33m[selected, based on language]\n"; OLD_AUDIO_LANG_="${AUDIO_LANG_,,}"; break
-			fi
-		printf "\n\033[2m"
-		done
+    for i in `seq 1 20`; do
+        AUDIO_INFO_=$(mediainfo "$INPUT_" | \
+                sed -n '/^Audio #'$i'[^[:graph:]]*$/,/^Audio #'$((i+1))'[^[:graph:]]*$/p')
+        if [[ $(echo "$AUDIO_INFO_" | wc -c) -lt 8 ]]; then break; fi
+        AUDIO_TRACK_=$(echo "$AUDIO_INFO_" | grep -m1 '^ID' | \
+                sed -r 's/^.*:[\t ]+([[:digit:]]{1,2})[^[:graph:]]*$/\1/')
+        AUDIO_TRACK_=$((AUDIO_TRACK_ - 1))
+        AUDIO_COD_=$(echo -n "$AUDIO_INFO_" | grep -m1 '^[Ff]ormat' | sed -r 's/^.*:[\t ]+(.*)$/\1/')
+        AUDIO_COD_="${AUDIO_COD_//[-_]}"
+        AUDIO_CHA_=$(echo -n "$AUDIO_INFO_" | grep -m1 -E '^[Cc]hannel(s|.s.)' | \
+                sed -r 's/^.*:[\t ]+([[:digit:]]+).*$/\1/')
+        AUDIO_BR_=$(echo -n "$AUDIO_INFO_" | grep -E -m1 '^[Bb]it.?[Rr]ate[\t ]+:' | \
+                sed -r 's/^.*:[\t ]+(.*)$/\1/')
+        if [[ "$AUDIO_BR_" == "" ]]; then AUDIO_BR_="? Kbps"; fi
+        AUDIO_SIZE_=$(echo -n "$AUDIO_INFO_" | grep -E -m1 '^[Ss]tream.?[Ss]ize' | sed -r 's/^.*:[\t ]+(.*)$/\1/')
+        if [[ "$AUDIO_SIZE_" == "" ]]; then AUDIO_SIZE_="? B (?%)"; fi
+        buffer=$(echo "$AUDIO_INFO_" | grep -m1 '^Language' | sed -r 's/^.*:[\t ]*([[:alpha:]]+)[^[:graph:]]*$/\1/')
+        if [[ "$buffer" == "" ]]; then buffer="Undefined"; fi
+        printf "\033[2m$AUDIO_TRACK_\t<$buffer>, <$AUDIO_COD_>, "
+        echo -n "<$AUDIO_CHA_ channels>, <$AUDIO_BR_>, <$AUDIO_SIZE_>"
+        ALL_AUDIO_LANGS_[$AUDIO_TRACK_]=$(lang_code "$buffer"); ALL_AUDIO_BRS_[$AUDIO_TRACK_]="$AUDIO_BR_"
+        ALL_AUDIO_CODS_[$AUDIO_TRACK_]="$AUDIO_COD_"; ALL_AUDIO_CHAS_[$AUDIO_TRACK_]="$AUDIO_CHA_"
+        if ! [[ ( "${buffer,,}" == "${AUDIO_LANG_,,}" ) || \
+                ( "${ALL_AUDIO_LANGS_[AUDIO_TRACK_]}" == "${AUDIO_LANG_,,}" ) ]]; then
+            AUDIO_TRACK_="NULL"
+        elif [[ "$MANY_AUDIOS_SAME_LANG_" == false ]]; then
+            printf "\n\t\033[7;33m[selected, based on language]\n"; OLD_AUDIO_LANG_="${AUDIO_LANG_,,}"; break
+            fi
+        printf "\n\033[2m"
+        done
 }
 
 # Prints the name of the "subtitles codec" used in the given file
 subtitles_codec ()
 {
-	local -r srt_time_rx='(([[:digit:]]{2}:){2}[[:digit:]]{2},[[:digit:]]{3}( --> )?){2}'
-	local first_line=$(head -n1 "$1" | sed -r 's/^(\xEF\xBB\xBF|\xEF\xBB\xBF)//')
-	if [[ "$first_line" == "<SAMI>"* ]]; then printf "SAMI"
-	elif [[ "$first_line" == "WEBVTT"* ]]; then printf "WebVTT"
-	elif [[ $(head -n8 "$1" | grep -Ec "$srt_time_rx") -gt 0 ]]; then printf "SubRip"
-	elif [[ $(grep -Ec '^\[[Vv]4\+ [Ss]tyles\][^[:graph:]]*$' "$1") -eq 1 ]]; then printf "ASS"
-	elif [[ $(grep -Ec '^\[[Vv]4 [Ss]tyles\][^[:graph:]]*$' "$1") -eq 1 ]]; then printf "SSA"
-	elif [[ $(grep -Ec '^(\{[[:digit:]]+\}){2}.*$' "$1") -gt 1 ]]; then printf "MicroDVD"
-	else printf "???"; fi
+    local -r srt_time_rx='(([[:digit:]]{2}:){2}[[:digit:]]{2},[[:digit:]]{3}( --> )?){2}'
+    local first_line=$(head -n1 "$1" | sed -r 's/^(\xEF\xBB\xBF|\xEF\xBB\xBF)//')
+    if [[ "$first_line" == "<SAMI>"* ]]; then printf "SAMI"
+    elif [[ "$first_line" == "WEBVTT"* ]]; then printf "WebVTT"
+    elif [[ $(head -n8 "$1" | grep -Ec "$srt_time_rx") -gt 0 ]]; then printf "SubRip"
+    elif [[ $(grep -Ec '^\[[Vv]4\+ [Ss]tyles\][^[:graph:]]*$' "$1") -eq 1 ]]; then printf "ASS"
+    elif [[ $(grep -Ec '^\[[Vv]4 [Ss]tyles\][^[:graph:]]*$' "$1") -eq 1 ]]; then printf "SSA"
+    elif [[ $(grep -Ec '^(\{[[:digit:]]+\}){2}.*$' "$1") -gt 1 ]]; then printf "MicroDVD"
+    else printf "???"; fi
 }
 
 # SETTING THE DEFAULT VALUES OF THE MAIN VARIABLES
@@ -266,163 +266,163 @@ if ! hash mkvmerge &> /dev/null; then error critical "mkvmerge is missing...\n" 
 
 # PROCESSING THE COMMAND LINE
 i=1; j=0; while [[ $i -le $# ]]; do
-	buffer="${!i}"
-	if [[ "$buffer" =~ ^-(h|-?help)$ ]]; then help_message full
-	elif [[ "$buffer" =~ ^-(hl|-list-languages)$ ]]; then help_message languages
-	elif [[ "$buffer" =~ ^-(\?|-get-command-line)$ ]]; then TEST_MODE_=true
-	elif [[ "$buffer" =~ ^--?prepare$ ]]; then install_me dependencies
-	elif [[ "$buffer" =~ ^--?install$ ]]; then install_me full
-	elif [[ "$buffer" =~ ^-(i|-input)$ ]]; then 
-		if [[ "$INPUT_" == "" ]]; then i=$((i + 1)); INPUT_="${!i}"; fi
-	elif [[ "$buffer" =~ ^-(o|-output)$ ]]; then i=$((i + 1)); OUTPUT_="${!i}"
-	elif [[ "$buffer" =~ ^-(O|-default-output)$ ]]; then OUTPUT_="predefined"
-	elif [[ "$buffer" =~ ^-(n|-rename-to-default)$ ]]; then OUTPUT_="predefined"; RENAME_ONLY_=true
-	elif [[ "$buffer" =~ ^-(r|-remove-input-file)$ ]]; then REMOVE_REPLACE_=true
-	elif [[ "$buffer" == '-e' ]]; then V_LIB_OVER_CODEC_=true
-	elif [[ "$buffer" =~ ^-(R|-remove-all-inputs)$ ]]; then REMOVE_REPLACE_=true; REMOVE_ALL_=true
-	elif [[ "$buffer" =~ ^-(S|-inherit-subtitles)$ ]]; then INHERIT_SUBS_=""
-	elif [[ "$buffer" =~ ^-(s|-subtitles)$ ]]; then
-		i=$((i + 1))
-		ADD_SUBTITLES_=true
-		SUB_LIST_[j]="${!i}"
-		j=$((j + 1))
-	elif [[ "$buffer" =~ ^-(t|-title)$ ]]; then i=$((i + 1)); TITLE_="${!i}"
-	elif [[ "$buffer" =~ ^-(T|-filename-as-title)$ ]]; then FILENAME_AS_TITLE_=true
-	elif [[ "$buffer" =~ ^-(c|-cover)$ ]]; then i=$((i + 1)); COVER_FILE_="${!i}"
-	elif [[ "$buffer" =~ ^-(L|-video-language)$ ]]; then i=$((i + 1)); VIDEO_LANG_=$(lang_code "${!i}")
-	elif [[ "$buffer" =~ ^-(l|-audio-language)$ ]]; then i=$((i + 1)); AUDIO_LANG_=$(lang_code "${!i}")
-	elif [[ "$buffer" =~ ^-(a|-audio-file)$ ]]; then i=$((i + 1)); AUDIO_SOURCE_="${!i}"
-	elif [[ "$buffer" =~ ^-(A|-aac-audio)$ ]]; then AAC_AUDIO_=true; i=$((i + 1)); AAC_SETTINGS_="${!i}"
-	else
-		if ! [[ ( -f "$buffer" ) && ( -r "$buffer" ) ]]; then printf "'$buffer' is not a valid file...\n"
-		elif [[ ( $(xdg-mime query filetype "$buffer") == image* ) && ( "$COVER_FILE_" == "" ) ]]; then
-			COVER_FILE_="$buffer"
-		elif [[ ( $(xdg-mime query filetype "$buffer") == video* ) && ( "$INPUT_" == "" ) ]]; then
-			INPUT_="$buffer"
-		elif [[ ( $(xdg-mime query filetype "$buffer") == audio* ) && ( "$AUDIO_SOURCE_" == "" ) ]]; then
-			AUDIO_SOURCE_="$buffer"
-		elif [[ "$buffer" =~ ^.*\.(s(sa|rt|a?mi)|ass)$ ]]; then
-			ADD_SUBTITLES_=true
-			SUB_LIST_[j]="$buffer"
-			j=$((j + 1))
-		elif [[ "$INPUT_" == "" ]]; then INPUT_="$buffer"; fi
-		fi
-	i=$((i + 1))
-	done
+    buffer="${!i}"
+    if [[ "$buffer" =~ ^-(h|-?help)$ ]]; then help_message full
+    elif [[ "$buffer" =~ ^-(hl|-list-languages)$ ]]; then help_message languages
+    elif [[ "$buffer" =~ ^-(\?|-get-command-line)$ ]]; then TEST_MODE_=true
+    elif [[ "$buffer" =~ ^--?prepare$ ]]; then install_me dependencies
+    elif [[ "$buffer" =~ ^--?install$ ]]; then install_me full
+    elif [[ "$buffer" =~ ^-(i|-input)$ ]]; then 
+        if [[ "$INPUT_" == "" ]]; then i=$((i + 1)); INPUT_="${!i}"; fi
+    elif [[ "$buffer" =~ ^-(o|-output)$ ]]; then i=$((i + 1)); OUTPUT_="${!i}"
+    elif [[ "$buffer" =~ ^-(O|-default-output)$ ]]; then OUTPUT_="predefined"
+    elif [[ "$buffer" =~ ^-(n|-rename-to-default)$ ]]; then OUTPUT_="predefined"; RENAME_ONLY_=true
+    elif [[ "$buffer" =~ ^-(r|-remove-input-file)$ ]]; then REMOVE_REPLACE_=true
+    elif [[ "$buffer" == '-e' ]]; then V_LIB_OVER_CODEC_=true
+    elif [[ "$buffer" =~ ^-(R|-remove-all-inputs)$ ]]; then REMOVE_REPLACE_=true; REMOVE_ALL_=true
+    elif [[ "$buffer" =~ ^-(S|-inherit-subtitles)$ ]]; then INHERIT_SUBS_=""
+    elif [[ "$buffer" =~ ^-(s|-subtitles)$ ]]; then
+        i=$((i + 1))
+        ADD_SUBTITLES_=true
+        SUB_LIST_[j]="${!i}"
+        j=$((j + 1))
+    elif [[ "$buffer" =~ ^-(t|-title)$ ]]; then i=$((i + 1)); TITLE_="${!i}"
+    elif [[ "$buffer" =~ ^-(T|-filename-as-title)$ ]]; then FILENAME_AS_TITLE_=true
+    elif [[ "$buffer" =~ ^-(c|-cover)$ ]]; then i=$((i + 1)); COVER_FILE_="${!i}"
+    elif [[ "$buffer" =~ ^-(L|-video-language)$ ]]; then i=$((i + 1)); VIDEO_LANG_=$(lang_code "${!i}")
+    elif [[ "$buffer" =~ ^-(l|-audio-language)$ ]]; then i=$((i + 1)); AUDIO_LANG_=$(lang_code "${!i}")
+    elif [[ "$buffer" =~ ^-(a|-audio-file)$ ]]; then i=$((i + 1)); AUDIO_SOURCE_="${!i}"
+    elif [[ "$buffer" =~ ^-(A|-aac-audio)$ ]]; then AAC_AUDIO_=true; i=$((i + 1)); AAC_SETTINGS_="${!i}"
+    else
+        if ! [[ ( -f "$buffer" ) && ( -r "$buffer" ) ]]; then printf "'$buffer' is not a valid file...\n"
+        elif [[ ( $(xdg-mime query filetype "$buffer") == image* ) && ( "$COVER_FILE_" == "" ) ]]; then
+            COVER_FILE_="$buffer"
+        elif [[ ( $(xdg-mime query filetype "$buffer") == video* ) && ( "$INPUT_" == "" ) ]]; then
+            INPUT_="$buffer"
+        elif [[ ( $(xdg-mime query filetype "$buffer") == audio* ) && ( "$AUDIO_SOURCE_" == "" ) ]]; then
+            AUDIO_SOURCE_="$buffer"
+        elif [[ "$buffer" =~ ^.*\.(s(sa|rt|a?mi)|ass)$ ]]; then
+            ADD_SUBTITLES_=true
+            SUB_LIST_[j]="$buffer"
+            j=$((j + 1))
+        elif [[ "$INPUT_" == "" ]]; then INPUT_="$buffer"; fi
+        fi
+    i=$((i + 1))
+    done
 printf "\n------------------------------------------ ----- ---- --- -- -\n\n"
 
 # ABORTING IF 'ffmpeg' IS MISSING AND SEEMS TO BE NEEDED
 if ! hash ffmpeg &> /dev/null && \
-		[[ $(grep -Ec '\.(s(a?mi|ub|sa)|(as|mk)s)' <<< ${SUB_LIST_[@],,}) -gt 0 ]] || 
-		[[ "$AAC_AUDIO_" == true ]]; then
-	error critical "ffmpeg is missing...\n" 101
-	fi
+        [[ $(grep -Ec '\.(s(a?mi|ub|sa)|(as|mk)s)' <<< ${SUB_LIST_[@],,}) -gt 0 ]] || 
+        [[ "$AAC_AUDIO_" == true ]]; then
+    error critical "ffmpeg is missing...\n" 101
+    fi
 
 # ABORTING IF 'imagemagick' IS MISSING AND SEEMS TO BE NEEDED
 if ! hash convert &> /dev/null && [[ -f "$COVER_FILE_" ]]; then
-	error critical "imagemagick is missing...\n" 102
-	fi
+    error critical "imagemagick is missing...\n" 102
+    fi
 
 # CHECKING THE INPUT AUDIO/VIDEO AND ANALYZING ITS CONTENT
 if [[ ( "$INPUT_" == "" ) || !( -f "$INPUT_" ) || !( -r "$INPUT_" ) ]]; then 
-	printf "Input file is missing or was not specified\n"
-	help_message
+    printf "Input file is missing or was not specified\n"
+    help_message
 else
-	if [[ "$AUDIO_SOURCE_" == "" ]]; then AUDIO_SOURCE_="$INPUT_"; fi
-	if ! hash mediainfo &> /dev/null; then 
-		error critical "mediainfo is missing...\n" 103
-	elif [[ $(mediainfo --language=raw "$INPUT_" | grep -Ec '^[Vv]ideo[\t ]+#[^:]*$') -gt 1 ]]; then
-		error critical "There are multiple video tracks in the input file...\n" 10
-	elif [[ ( -f "$NEW_AUDIO_" ) && ( $(mediainfo --language=raw "$INPUT_" | grep -Ec '^[Aa]udio[\t ]+#[^:]*$') -gt 1 ) ]]; then
-		error critical "There are multiple video tracks in the input file...\n" 10
-	elif [[ $(mediainfo --language=raw "$INPUT_" | grep -Ec '^[Aa]udio[\t ]+#[^:]*$') -gt 1 ]]; then
-		error warning "There are multiple audio tracks in the input file: \033[2;33m\nID\tdetails...\n"
-		if [[ "#TODO" == "#TODO" ]]; then MANY_AUDIOS_SAME_LANG_=false; fi
-		iterate_over_audios
-		if [[ "$AUDIO_TRACK_" == "NULL" ]]; then
-			printf "\n\033[2;33m"; read -p "Which one is to be kept? [ID] " AUDIO_TRACK_
-			AUDIO_COD_="${ALL_AUDIO_CODS_[AUDIO_TRACK_]}"; AUDIO_BR_="${ALL_AUDIO_BRS_[AUDIO_TRACK_]}"
-			AUDIO_CHA_="${ALL_AUDIO_CHAS_[AUDIO_TRACK_]}"; OLD_AUDIO_LANG_="${ALL_AUDIO_LANGS_[AUDIO_TRACK_],,}"
-			fi
-		printf "\033[0m\n"
-	else
-		AUDIO_TRACK_=1
-		AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Codec/Family%" "$INPUT_")
-		if [[ "$AUDIO_COD_" =~ ^[^[:graph:]]*$ ]]; then 
-			AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Format%" "$INPUT_")
-			fi
-		AUDIO_COD_="${AUDIO_COD_//[-_]}"
-		AUDIO_CHA_=$(mediainfo --language=raw --full --inform="Audio;%Channel(s)%" "$INPUT_")
-		OLD_AUDIO_LANG_=$(mediainfo --language=raw --full --inform="Audio;%Language/String3%" "$INPUT_")
-		fi
-	TRACK_1_="${TRACK_1_//TRKN/$AUDIO_TRACK_}"
-	if [[ "$V_LIB_OVER_CODEC_" == false ]]; then
-		VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Codec/Family%" "$INPUT_")
-	else VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Encoded_Library_Name%" "$INPUT_"); fi
-	if [[ "$VIDEO_COD_" =~ ^[^[:graph:]]*$ ]]; then 
-		VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Format%" "$INPUT_")
-		fi
-	VIDEO_COD_="${VIDEO_COD_//[-_]}"
-	VIDEO_BR_=$(mediainfo --language=raw --full --inform="Video;%BitRate/String%" "$INPUT_")
-	VIDEO_ASPECT_=$(mediainfo --language=raw --full --inform="Video;%DisplayAspectRatio/String%" "$INPUT_")
-	VIDEO_FPS_=$(mediainfo --language=raw --full --inform="Video;%FrameRate%" "$INPUT_")
-	RESOLUTION_=$(mediainfo --language=raw --full --inform="Video;%Height%" "$INPUT_")
-	if [[ $RESOLUTION_ -gt 2000 ]]; then RESOLUTION_="4K";
-	elif [[ $RESOLUTION_ -gt 800 ]]; then RESOLUTION_="1080p"
-	elif [[ $RESOLUTION_ -gt 500 ]]; then RESOLUTION_="720p"
-	elif [[ $RESOLUTION_ -gt 380 ]]; then RESOLUTION_="480p"
-	elif [[ $RESOLUTION_ -gt 250 ]]; then RESOLUTION_="360p"
-	else RESOLUTION_="240p"; fi
-	fi
+    if [[ "$AUDIO_SOURCE_" == "" ]]; then AUDIO_SOURCE_="$INPUT_"; fi
+    if ! hash mediainfo &> /dev/null; then 
+        error critical "mediainfo is missing...\n" 103
+    elif [[ $(mediainfo --language=raw "$INPUT_" | grep -Ec '^[Vv]ideo[\t ]+#[^:]*$') -gt 1 ]]; then
+        error critical "There are multiple video tracks in the input file...\n" 10
+    elif [[ ( -f "$NEW_AUDIO_" ) && ( $(mediainfo --language=raw "$INPUT_" | grep -Ec '^[Aa]udio[\t ]+#[^:]*$') -gt 1 ) ]]; then
+        error critical "There are multiple video tracks in the input file...\n" 10
+    elif [[ $(mediainfo --language=raw "$INPUT_" | grep -Ec '^[Aa]udio[\t ]+#[^:]*$') -gt 1 ]]; then
+        error warning "There are multiple audio tracks in the input file: \033[2;33m\nID\tdetails...\n"
+        if [[ "#TODO" == "#TODO" ]]; then MANY_AUDIOS_SAME_LANG_=false; fi
+        iterate_over_audios
+        if [[ "$AUDIO_TRACK_" == "NULL" ]]; then
+            printf "\n\033[2;33m"; read -p "Which one is to be kept? [ID] " AUDIO_TRACK_
+            AUDIO_COD_="${ALL_AUDIO_CODS_[AUDIO_TRACK_]}"; AUDIO_BR_="${ALL_AUDIO_BRS_[AUDIO_TRACK_]}"
+            AUDIO_CHA_="${ALL_AUDIO_CHAS_[AUDIO_TRACK_]}"; OLD_AUDIO_LANG_="${ALL_AUDIO_LANGS_[AUDIO_TRACK_],,}"
+            fi
+        printf "\033[0m\n"
+    else
+        AUDIO_TRACK_=1
+        AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Codec/Family%" "$INPUT_")
+        if [[ "$AUDIO_COD_" =~ ^[^[:graph:]]*$ ]]; then 
+            AUDIO_COD_=$(mediainfo --language=raw --full --inform="Audio;%Format%" "$INPUT_")
+            fi
+        AUDIO_COD_="${AUDIO_COD_//[-_]}"
+        AUDIO_CHA_=$(mediainfo --language=raw --full --inform="Audio;%Channel(s)%" "$INPUT_")
+        OLD_AUDIO_LANG_=$(mediainfo --language=raw --full --inform="Audio;%Language/String3%" "$INPUT_")
+        fi
+    TRACK_1_="${TRACK_1_//TRKN/$AUDIO_TRACK_}"
+    if [[ "$V_LIB_OVER_CODEC_" == false ]]; then
+        VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Codec/Family%" "$INPUT_")
+    else VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Encoded_Library_Name%" "$INPUT_"); fi
+    if [[ "$VIDEO_COD_" =~ ^[^[:graph:]]*$ ]]; then 
+        VIDEO_COD_=$(mediainfo --language=raw --full --inform="Video;%Format%" "$INPUT_")
+        fi
+    VIDEO_COD_="${VIDEO_COD_//[-_]}"
+    VIDEO_BR_=$(mediainfo --language=raw --full --inform="Video;%BitRate/String%" "$INPUT_")
+    VIDEO_ASPECT_=$(mediainfo --language=raw --full --inform="Video;%DisplayAspectRatio/String%" "$INPUT_")
+    VIDEO_FPS_=$(mediainfo --language=raw --full --inform="Video;%FrameRate%" "$INPUT_")
+    RESOLUTION_=$(mediainfo --language=raw --full --inform="Video;%Height%" "$INPUT_")
+    if [[ $RESOLUTION_ -gt 2000 ]]; then RESOLUTION_="4K";
+    elif [[ $RESOLUTION_ -gt 800 ]]; then RESOLUTION_="1080p"
+    elif [[ $RESOLUTION_ -gt 500 ]]; then RESOLUTION_="720p"
+    elif [[ $RESOLUTION_ -gt 380 ]]; then RESOLUTION_="480p"
+    elif [[ $RESOLUTION_ -gt 250 ]]; then RESOLUTION_="360p"
+    else RESOLUTION_="240p"; fi
+    fi
 
 # INHERITING AUDIO/VIDEO LANGUAGES IF NO ONE WAS SPECIFIED BY THE USER, BUT ONE WAS IN THE INPUT FILE
 if [[ "$AUDIO_LANG_" =~ ^([Uu][Nn][Dd].*|[^[:graph:]]*)$ ]]; then 
-	if [[ "$OLD_AUDIO_LANG_" =~ ^([Uu][Nn][Dd].*|[^[:graph:]]*)$ ]]; then AUDIO_LANG_="und"
-	else AUDIO_LANG_="$OLD_AUDIO_LANG_"; fi
-	fi
+    if [[ "$OLD_AUDIO_LANG_" =~ ^([Uu][Nn][Dd].*|[^[:graph:]]*)$ ]]; then AUDIO_LANG_="und"
+    else AUDIO_LANG_="$OLD_AUDIO_LANG_"; fi
+    fi
 if [[ "$VIDEO_LANG_" =~ ^([Uu][Nn][Dd].*|[^[:graph:]]*)$ ]]; then
-	buffer=$(mediainfo --full --language=raw --inform="Video;%Language/String3%" "$INPUT_")
-	if [[ "$buffer" =~ ^[[:alpha:]]{3}$ ]]; then VIDEO_LANG_="${buffer,,}"
-	else VIDEO_LANG_="und"; fi
-	fi
+    buffer=$(mediainfo --full --language=raw --inform="Video;%Language/String3%" "$INPUT_")
+    if [[ "$buffer" =~ ^[[:alpha:]]{3}$ ]]; then VIDEO_LANG_="${buffer,,}"
+    else VIDEO_LANG_="und"; fi
+    fi
 
 # SETTING (OR PROMPTING FOR) A TITLE (METADATA) IF NONE WAS SET PREVIOUSLY
 if [[ ( "$TITLE_" == "" ) && ( "$FILENAME_AS_TITLE_" == true ) ]]; then
-	TITLE_=$(printf "${INPUT_##*/}\n" | sed -r 's/^(.*?)\.[[:alnum:]]{1,4}$/\1/')
-	fi
+    TITLE_=$(printf "${INPUT_##*/}\n" | sed -r 's/^(.*?)\.[[:alnum:]]{1,4}$/\1/')
+    fi
 if [[ "$INPUT_" == *.mkv ]]; then
-	OLD_TITLE_=$(mkvinfo "$INPUT_" | grep [Tt]itle | sed -r 's/^.*?: (.*)$/\1/')
-	if [[ "$TITLE_" == "" ]]; then TITLE_="$OLD_TITLE_"; fi
-	fi
+    OLD_TITLE_=$(mkvinfo "$INPUT_" | grep [Tt]itle | sed -r 's/^.*?: (.*)$/\1/')
+    if [[ "$TITLE_" == "" ]]; then TITLE_="$OLD_TITLE_"; fi
+    fi
 if [[ "$TITLE_" == "" ]]; then
-	read -p "Do you want to enter a title for the file now? [Y/n] " buffer
-	if [[ "$buffer" == [Nn]* ]]; then TITLE_="${INPUT_##*/}"; TITLE_="${TITLE_%%.*}"
-	else read -p "Title: " TITLE_; fi
-	printf "\n"
-	fi
+    read -p "Do you want to enter a title for the file now? [Y/n] " buffer
+    if [[ "$buffer" == [Nn]* ]]; then TITLE_="${INPUT_##*/}"; TITLE_="${TITLE_%%.*}"
+    else read -p "Title: " TITLE_; fi
+    printf "\n"
+    fi
 OLD_TITLE_=$(printf "${OLD_TITLE_//%/%%}" | sed -n '1p')
 TITLE_=$(printf "${TITLE_//%/%%}" | sed -n '1p')
 TITLE_=$(echo ${TITLE_//<old_title>/$OLD_TITLE_})
 
 # CHECKING THE OUTPUT PATH AND FIXING IT, IF NEEDED AND POSSIBLE
 if [[ "$OUTPUT_" == "" ]]; then 
-	OUTPUT_="${INPUT_%.*}.mkv"
-	if [[ ( "$REMOVE_REPLACE_" == true ) && ( "$INPUT_" == "$OUTPUT_" ) ]]; then OUTPUT_="$OUTPUT_.tmp"; fi
+    OUTPUT_="${INPUT_%.*}.mkv"
+    if [[ ( "$REMOVE_REPLACE_" == true ) && ( "$INPUT_" == "$OUTPUT_" ) ]]; then OUTPUT_="$OUTPUT_.tmp"; fi
 elif [[ "$OUTPUT_" == "predefined" ]]; then
-	if [[ "$INPUT_" == */* ]]; then OUTPUT_="${INPUT_%/*}/$TITLE_"
-	else OUTPUT_="$TITLE_"; fi
-	OUTPUT_="$OUTPUT_ $RESOLUTION_ $VIDEO_COD_ $AUDIO_COD_.mkv"
-	if [[ "$RENAME_ONLY_" == true ]]; then FINAL_LOWLEVEL_CL_="mv -vi \"$INPUT_\" \"$OUTPUT_\"\n"; fi
+    if [[ "$INPUT_" == */* ]]; then OUTPUT_="${INPUT_%/*}/$TITLE_"
+    else OUTPUT_="$TITLE_"; fi
+    OUTPUT_="$OUTPUT_ $RESOLUTION_ $VIDEO_COD_ $AUDIO_COD_.mkv"
+    if [[ "$RENAME_ONLY_" == true ]]; then FINAL_LOWLEVEL_CL_="mv -vi \"$INPUT_\" \"$OUTPUT_\"\n"; fi
 elif [[ -d "$OUTPUT_" ]]; then
-	buffer=${INPUT_##*/}
-	OUTPUT_="${OUTPUT_%/}/${buffer%.*}.mkv"
+    buffer=${INPUT_##*/}
+    OUTPUT_="${OUTPUT_%/}/${buffer%.*}.mkv"
 elif [[ "$OUTPUT_" != *.mkv ]]; then
-	OUTPUT_=$(printf "${OUTPUT_//%/%%}" | sed -r 's/\.[[:alnum:]]{1,4}/.mkv/')
-	fi
+    OUTPUT_=$(printf "${OUTPUT_//%/%%}" | sed -r 's/\.[[:alnum:]]{1,4}/.mkv/')
+    fi
 if [[ "$OUTPUT_" == "$INPUT_" ]]; then
-	printf "\nOutput would overwrite input...\nIf that is what you want, enable the '-r' (or '-R') option\n"
-	exit 65
-	fi
+    printf "\nOutput would overwrite input...\nIf that is what you want, enable the '-r' (or '-R') option\n"
+    exit 65
+    fi
 
 # PRINTING INPUT INFORMATION
 printf "MAIN INPUT:\n\033[2m${INPUT_//%/%%}\033[0m\n"
@@ -444,143 +444,143 @@ rm -f "$INPUT.tmp" &> /dev/null
 # PROCESSING ANY GIVEN SUBTITLES
 if [[ "$j" -gt 0 ]]; then IFS=$'\n'; SUB_LIST_=($(sort -d -s <<< "${SUB_LIST_[*]}")); unset IFS; fi
 if [[ "$ADD_SUBTITLES_" == true ]]; then
-	printf "SUBTITLES:\n"
-	i=0
-	SUB_f=$(if [[ "$AAC_AUDIO_" == true ]]; then printf "2"; else printf "1"; fi)
-	while [[ "$i" -lt "$j" ]]; do
-		if ! [[ "${SUB_LIST_[i]}" =~ ^[[:alpha:]]{3}:.*$ ]]; then
-			if [[ "${SUB_LIST_[i]}" =~ ^[[:alpha:]]{3,15}:.*$ ]]; then
-				SUB_LANG_[i]=$(lang_code $(printf "${SUB_LIST_[i]//%/%%}" | \
-					sed -r 's/^([[:alpha:]]{3,15}):.*$/\1/'))
-				fi
-			if [[ "${SUB_LANG_[i]}" == "UND" ]] || \
-					[[ "${SUB_LIST_[i],,}" =~ ^.*[[:alpha:]]{3}\.(s(sa|rt|ub|a?mi)|ass)$ ]]; then
-				SUB_LANG_[i]=$(lang_code $(printf "${SUB_LIST_[i]//%/%%}" | \
-					sed -r 's/^.*([[:alpha:]]{3})\....$/\1/'))
-				fi
-			if [[ "${SUB_LANG_[i]}" == "UND" ]]; then
-				printf "\033[2;3;33m"; 
-				read -p "Name (in english or ISO 639-2 code) the language of '${SUB_LIST_[i]##*/}': " buffer
-				printf "\033[0;0;0m"
-				SUB_LANG_[i]=$(lang_code "$buffer")
-				SUB_LIST_[i]=$(printf "${SUB_LIST_[i]//%/%%}" | sed -r 's/^[[:alpha:]]{,12}://')
-				fi
-		else
-			SUB_LANG_[i]=$(lang_code "${SUB_LIST_[i]:0:3}")
-			SUB_LIST_[i]="${SUB_LIST_[i]:4}"
-			fi
-		
-		if [[ "${SUB_LANG_[i]}" == "UND" ]]; then
-			printf "Unrecognized language '${buffer//%/%%}'\n"
-			printf "Try '${0##*/} -hl' for a list of accepted languages and codes\n"
-			exit 95
-			fi
-		SUB_COD_=$(subtitles_codec "${SUB_LIST_[i]}")
-		if ! [[ "${SUB_LIST_[i]}" == *.srt ]]; then
-			if [[ "$TEST_MODE_" == true ]]; then
-				PREVIOUS__LINES_+="ffmpeg -i \"${SUB_LIST_[i]}\" -vn -an "
-				PREVIOUS__LINES_+="-scodec srt \"/tmp/${SUB_LIST_[i]##*/}.srt.utf8\"; "
-			elif OPS_OUT_+=$(ffmpeg -v 40 -hide_banner -i "${SUB_LIST_[i]}" -vn -an -scodec srt \
-						"/tmp/${SUB_LIST_[i]##*/}.srt.utf8" 2>&1; printf "\n"); then
-				OLD_SUB_LIST[i]="${SUB_LIST_[i]}"
-				SUB_LIST_[i]="/tmp/${SUB_LIST_[i]##*/}.srt.utf8"
-			else 
-				error critical "'${SUB_LIST_[i]}' contains no valid subtitles\n" 31
-				fi
-			fi
-		to_utf8 "${SUB_LIST_[i]}" "${SUB_LANG_[i]}"
-		if [[ "$REMOVE_ALL_" == true ]]; then OLD_SUB_LIST_[i]="${SUB_LIST_[i]}"; fi
-		if [[ ( -f "/tmp/nicemkv_${SUB_LIST_[i]##*/}.utf8" ) && ( "$TO_UTF8_STATUS" != bad ) ]]; then
-			SUB_LIST_[i]="/tmp/nicemkv_${SUB_LIST_[i]##*/}.utf8"
-			fi
-		if [[ -f "${SUB_LIST_[i]}" ]]; then
-			printf "\033[2m${SUB_LIST_[i]//%/%%}\n\033[2;3;7m${SUB_CS_//[-_]} $SUB_COD_ [${SUB_LANG_[i]}]\033[0;0;0m"
-			if [[ $(printf "${SUB_LIST_[i]//%/%%}" | grep -Ec '^(.*[^[:alpha:]])?(SDH|sdh)([^[:alpha:]].*)?$') -gt 0 ]]; then
-				SUB_EXTRA_OPTIONS_+=" --track-name 0:'SDH'"
-				printf "\033[2;3;7m [SDH]\033[0;0;0m"
-				fi
-			printf "\033[0m\n"
-			SUB_EXTRA_OPTIONS_+=" --language 0:${SUB_LANG_[i]} --sub-charset 0:UTF-8"
-			SUB_EXTRA_OPTIONS_+=" --default-track 0:no --forced-track 0:no"
-			SUB_EXTRA_OPTIONS_+=" --subtitle-tracks 0 '(' \"${SUB_LIST_[i]}\" ')'"
-			SUB_TRACKS_=",$SUB_f:0"
-			fi
-		i=$((i + 1))
-		SUB_f=$((SUB_f + 1))
-		done
-	SUB_EXTRA_OPTIONS_="${SUB_EXTRA_OPTIONS_# }"
-	fi
+    printf "SUBTITLES:\n"
+    i=0
+    SUB_f=$(if [[ "$AAC_AUDIO_" == true ]]; then printf "2"; else printf "1"; fi)
+    while [[ "$i" -lt "$j" ]]; do
+        if ! [[ "${SUB_LIST_[i]}" =~ ^[[:alpha:]]{3}:.*$ ]]; then
+            if [[ "${SUB_LIST_[i]}" =~ ^[[:alpha:]]{3,15}:.*$ ]]; then
+                SUB_LANG_[i]=$(lang_code $(printf "${SUB_LIST_[i]//%/%%}" | \
+                    sed -r 's/^([[:alpha:]]{3,15}):.*$/\1/'))
+                fi
+            if [[ "${SUB_LANG_[i]}" == "UND" ]] || \
+                    [[ "${SUB_LIST_[i],,}" =~ ^.*[[:alpha:]]{3}\.(s(sa|rt|ub|a?mi)|ass)$ ]]; then
+                SUB_LANG_[i]=$(lang_code $(printf "${SUB_LIST_[i]//%/%%}" | \
+                    sed -r 's/^.*([[:alpha:]]{3})\....$/\1/'))
+                fi
+            if [[ "${SUB_LANG_[i]}" == "UND" ]]; then
+                printf "\033[2;3;33m"; 
+                read -p "Name (in english or ISO 639-2 code) the language of '${SUB_LIST_[i]##*/}': " buffer
+                printf "\033[0;0;0m"
+                SUB_LANG_[i]=$(lang_code "$buffer")
+                SUB_LIST_[i]=$(printf "${SUB_LIST_[i]//%/%%}" | sed -r 's/^[[:alpha:]]{,12}://')
+                fi
+        else
+            SUB_LANG_[i]=$(lang_code "${SUB_LIST_[i]:0:3}")
+            SUB_LIST_[i]="${SUB_LIST_[i]:4}"
+            fi
+        
+        if [[ "${SUB_LANG_[i]}" == "UND" ]]; then
+            printf "Unrecognized language '${buffer//%/%%}'\n"
+            printf "Try '${0##*/} -hl' for a list of accepted languages and codes\n"
+            exit 95
+            fi
+        SUB_COD_=$(subtitles_codec "${SUB_LIST_[i]}")
+        if ! [[ "${SUB_LIST_[i]}" == *.srt ]]; then
+            if [[ "$TEST_MODE_" == true ]]; then
+                PREVIOUS__LINES_+="ffmpeg -i \"${SUB_LIST_[i]}\" -vn -an "
+                PREVIOUS__LINES_+="-scodec srt \"/tmp/${SUB_LIST_[i]##*/}.srt.utf8\"; "
+            elif OPS_OUT_+=$(ffmpeg -v 40 -hide_banner -i "${SUB_LIST_[i]}" -vn -an -scodec srt \
+                        "/tmp/${SUB_LIST_[i]##*/}.srt.utf8" 2>&1; printf "\n"); then
+                OLD_SUB_LIST[i]="${SUB_LIST_[i]}"
+                SUB_LIST_[i]="/tmp/${SUB_LIST_[i]##*/}.srt.utf8"
+            else 
+                error critical "'${SUB_LIST_[i]}' contains no valid subtitles\n" 31
+                fi
+            fi
+        to_utf8 "${SUB_LIST_[i]}" "${SUB_LANG_[i]}"
+        if [[ "$REMOVE_ALL_" == true ]]; then OLD_SUB_LIST_[i]="${SUB_LIST_[i]}"; fi
+        if [[ ( -f "/tmp/nicemkv_${SUB_LIST_[i]##*/}.utf8" ) && ( "$TO_UTF8_STATUS" != bad ) ]]; then
+            SUB_LIST_[i]="/tmp/nicemkv_${SUB_LIST_[i]##*/}.utf8"
+            fi
+        if [[ -f "${SUB_LIST_[i]}" ]]; then
+            printf "\033[2m${SUB_LIST_[i]//%/%%}\n\033[2;3;7m${SUB_CS_//[-_]} $SUB_COD_ [${SUB_LANG_[i]}]\033[0;0;0m"
+            if [[ $(printf "${SUB_LIST_[i]//%/%%}" | grep -Ec '^(.*[^[:alpha:]])?(SDH|sdh)([^[:alpha:]].*)?$') -gt 0 ]]; then
+                SUB_EXTRA_OPTIONS_+=" --track-name 0:'SDH'"
+                printf "\033[2;3;7m [SDH]\033[0;0;0m"
+                fi
+            printf "\033[0m\n"
+            SUB_EXTRA_OPTIONS_+=" --language 0:${SUB_LANG_[i]} --sub-charset 0:UTF-8"
+            SUB_EXTRA_OPTIONS_+=" --default-track 0:no --forced-track 0:no"
+            SUB_EXTRA_OPTIONS_+=" --subtitle-tracks 0 '(' \"${SUB_LIST_[i]}\" ')'"
+            SUB_TRACKS_=",$SUB_f:0"
+            fi
+        i=$((i + 1))
+        SUB_f=$((SUB_f + 1))
+        done
+    SUB_EXTRA_OPTIONS_="${SUB_EXTRA_OPTIONS_# }"
+    fi
 
 # PROCESSING ANY GIVEN COVER IMAGE
 if [[ "$COVER_FILE_" != "" ]]; then 
-	if ! [[ ( -f "$COVER_FILE_" ) && ( -r "$COVER_FILE_" ) ]]; then
-		if wget -O "$COVER_FILE_" -c "/tmp/nicemkv.cover.jpg"; then
-			PREVIOUS__LINES_+="wget -O \"$COVER_FILE_\" -c \"/tmp/nicemkv.cover.jpg\""
-			COVER_FILE_="/tmp/nicemkv.cover.jpg"
-		else 
-			error critical "Cannot access '$2'\n" 29
-			fi
-		fi
-	if [[ $(xdg-mime query filetype "$COVER_FILE_") =~ ^image/.*$ ]]; then
-		COVER_COD_=$(identify -format '%m' "$COVER_FILE_")
-	else COVER_COD_="???"; fi
-	if [[ $(xdg-mime query filetype "$COVER_FILE_") != 'image/jpeg'* ]]; then
-		convert "$COVER_FILE_" -format jpeg -quality 99 "/tmp/nicemkv.cover.jpg"
-		PREVIOUS__LINES_+="convert \"$COVER_FILE_\" -format jpeg -quality 99 \"/tmp/nicemkv.cover.jpg\""
-		if [[ $? -ne 0 ]]; then
-			error critical "'$2' is not a valid image file\n" 20
-			fi
-		OLD_COVER_FILE_="$COVER_FILE_"
-		COVER_FILE_="/tmp/nicemkv.cover.jpg"
-		fi
-	COVER_WIDTH=$(identify -ping -format '%W\n%H' "$COVER_FILE_" | sed '1q;d')
-	COVER_HEIGHT=$(identify -ping -format '%W\n%H' "$COVER_FILE_" | sed '2q;d')
-	COVER_IS_POSTER=$(((COVER_HEIGHT * 200) / (COVER_WIDTH / 5)))
-	if [[ ( "$COVER_IS_POSTER" -ge 1490 ) && ( "$COVER_IS_POSTER" -le 1510 ) ]]; then
-		if [[ ( "$COVER_WIDTH" -ge 595 ) && ( "$COVER_HEIGHT" -ge 893 ) ]]; then
-			if [[ "$COVER_FILE_" == "/tmp/nicemkv.cover.jpg" ]]; then
-				convert "$COVER_FILE_" -resize 600x900\! "$COVER_FILE_" 
-			else
-				convert "$COVER_FILE_" -resize 600x900\! "/tmp/nicemkv.cover.jpg"
-				OLD_COVER_FILE_="$COVER_FILE_"
-				COVER_FILE_="/tmp/nicemkv.cover.jpg"
-				fi
-		else
-			printf "The cover seems to be a movie poster, but it is too small...\n"
-			read -p "Proceed anyway? [y/N] " buffer
-			if [[ "$buffer" != [Yy]* ]]; then exit 11; fi
-			fi
-		fi
+    if ! [[ ( -f "$COVER_FILE_" ) && ( -r "$COVER_FILE_" ) ]]; then
+        if wget -O "$COVER_FILE_" -c "/tmp/nicemkv.cover.jpg"; then
+            PREVIOUS__LINES_+="wget -O \"$COVER_FILE_\" -c \"/tmp/nicemkv.cover.jpg\""
+            COVER_FILE_="/tmp/nicemkv.cover.jpg"
+        else 
+            error critical "Cannot access '$2'\n" 29
+            fi
+        fi
+    if [[ $(xdg-mime query filetype "$COVER_FILE_") =~ ^image/.*$ ]]; then
+        COVER_COD_=$(identify -format '%m' "$COVER_FILE_")
+    else COVER_COD_="???"; fi
+    if [[ $(xdg-mime query filetype "$COVER_FILE_") != 'image/jpeg'* ]]; then
+        convert "$COVER_FILE_" -format jpeg -quality 99 "/tmp/nicemkv.cover.jpg"
+        PREVIOUS__LINES_+="convert \"$COVER_FILE_\" -format jpeg -quality 99 \"/tmp/nicemkv.cover.jpg\""
+        if [[ $? -ne 0 ]]; then
+            error critical "'$2' is not a valid image file\n" 20
+            fi
+        OLD_COVER_FILE_="$COVER_FILE_"
+        COVER_FILE_="/tmp/nicemkv.cover.jpg"
+        fi
+    COVER_WIDTH=$(identify -ping -format '%W\n%H' "$COVER_FILE_" | sed '1q;d')
+    COVER_HEIGHT=$(identify -ping -format '%W\n%H' "$COVER_FILE_" | sed '2q;d')
+    COVER_IS_POSTER=$(((COVER_HEIGHT * 200) / (COVER_WIDTH / 5)))
+    if [[ ( "$COVER_IS_POSTER" -ge 1490 ) && ( "$COVER_IS_POSTER" -le 1510 ) ]]; then
+        if [[ ( "$COVER_WIDTH" -ge 595 ) && ( "$COVER_HEIGHT" -ge 893 ) ]]; then
+            if [[ "$COVER_FILE_" == "/tmp/nicemkv.cover.jpg" ]]; then
+                convert "$COVER_FILE_" -resize 600x900\! "$COVER_FILE_" 
+            else
+                convert "$COVER_FILE_" -resize 600x900\! "/tmp/nicemkv.cover.jpg"
+                OLD_COVER_FILE_="$COVER_FILE_"
+                COVER_FILE_="/tmp/nicemkv.cover.jpg"
+                fi
+        else
+            printf "The cover seems to be a movie poster, but it is too small...\n"
+            read -p "Proceed anyway? [y/N] " buffer
+            if [[ "$buffer" != [Yy]* ]]; then exit 11; fi
+            fi
+        fi
 else
-	if [[ ( "$INPUT_" == *.mkv ) && ( $(mkvinfo "$INPUT_" | grep -Eic 'cover\.jpe?g') -eq 1 ) ]]; then
-		ATTACH_OPTIONS_=$(mkvinfo "$INPUT_" | sed -r -n '1,/.*[Cc][Oo][Vv][Ee][Rr]\.[Jj][Pp][Ee]?[Gg].*/p' | \
-					grep -c -i 'attached')
-		ATTACH_OPTIONS_="--attachments $ATTACH_OPTIONS_"
-		COVER_=""
-	else
-		if ! hash totem-video-thumbnailer &> /dev/null; then 
-			error warning "totem-video-thumbnailer is missing...\n"
-			COVER_=""
-		else
-			OPS_OUT_+=$(totem-video-thumbnailer -j -v -s 600 -t 23 "$INPUT_" "/tmp/nicemkv.cover.jpg" \
-					2>&1; printf "\n")
-			COVER_FILE_="/tmp/nicemkv.cover.jpg"
-			COVER_IS_THUMB_=true
-			fi
-		fi
-	fi
+    if [[ ( "$INPUT_" == *.mkv ) && ( $(mkvinfo "$INPUT_" | grep -Eic 'cover\.jpe?g') -eq 1 ) ]]; then
+        ATTACH_OPTIONS_=$(mkvinfo "$INPUT_" | sed -r -n '1,/.*[Cc][Oo][Vv][Ee][Rr]\.[Jj][Pp][Ee]?[Gg].*/p' | \
+                    grep -c -i 'attached')
+        ATTACH_OPTIONS_="--attachments $ATTACH_OPTIONS_"
+        COVER_=""
+    else
+        if ! hash totem-video-thumbnailer &> /dev/null; then 
+            error warning "totem-video-thumbnailer is missing...\n"
+            COVER_=""
+        else
+            OPS_OUT_+=$(totem-video-thumbnailer -j -v -s 600 -t 23 "$INPUT_" "/tmp/nicemkv.cover.jpg" \
+                    2>&1; printf "\n")
+            COVER_FILE_="/tmp/nicemkv.cover.jpg"
+            COVER_IS_THUMB_=true
+            fi
+        fi
+    fi
 if [[ -f "$COVER_FILE_" ]]; then 
-	COVER_FINAL_DIMS_=$(identify -ping -format '%Wx%H' "$COVER_FILE_")
-	printf "COVER IMAGE:\n\033[2m"
-	if [[ "$COVER_IS_THUMB_" == false ]]; then 
-		printf "${COVER_FILE_//%/%%}\n\033[3;7m$COVER_COD_ [${COVER_WIDTH}x$COVER_HEIGHT]"
-	elif [[ "$COVER_IS_THUMB_" == "inherited" ]]; then
-		printf "inherited"
-	else 
-		printf "thumbnail"
-		fi
-	printf "\033[0;0;0m\n"
-	fi
+    COVER_FINAL_DIMS_=$(identify -ping -format '%Wx%H' "$COVER_FILE_")
+    printf "COVER IMAGE:\n\033[2m"
+    if [[ "$COVER_IS_THUMB_" == false ]]; then 
+        printf "${COVER_FILE_//%/%%}\n\033[3;7m$COVER_COD_ [${COVER_WIDTH}x$COVER_HEIGHT]"
+    elif [[ "$COVER_IS_THUMB_" == "inherited" ]]; then
+        printf "inherited"
+    else 
+        printf "thumbnail"
+        fi
+    printf "\033[0;0;0m\n"
+    fi
 
 # PRINTING OUTPUT INFORMATION
 if [[ "$OUTPUT_" == "$INPUT_".tmp ]]; then printf "\nOUTPUT:\n\033[2m${INPUT_//%/%%}\033[0m\n"
@@ -595,44 +595,44 @@ if [[ "$VIDEO_FPS_" != "" ]]; then printf ", $VIDEO_FPS_ fps"; fi
 if [[ "$VIDEO_BR_" != "" ]]; then printf ", $VIDEO_BR_"; fi
 printf "]\033[0;0;0m\n"
 if [[ ( "$INHERIT_SUBS_" == true ) && ( "${#SUB_LIST_[@]}" -lt 1 ) ]]; then
-	printf "???"
+    printf "???"
 else
-	printf "\033[2;3;7mSubtitles: UTF8 SubRip ["
-	if [[ "${#SUB_LANG_[@]}" -eq 0 ]]; then printf " "
-	elif [[ "${#SUB_LANG_[@]}" -gt 13 ]]; then printf "${#SUB_LANG_[@]} languages"
-	else for i in ${SUB_LANG_[@]}; do printf "$i "; done; fi
-	printf "\b]\033[0;0;0m\n"
-	if [[ "$INHERIT_SUBS_" == true ]]; then printf " + ???"; fi
-	fi
+    printf "\033[2;3;7mSubtitles: UTF8 SubRip ["
+    if [[ "${#SUB_LANG_[@]}" -eq 0 ]]; then printf " "
+    elif [[ "${#SUB_LANG_[@]}" -gt 13 ]]; then printf "${#SUB_LANG_[@]} languages"
+    else for i in ${SUB_LANG_[@]}; do printf "$i "; done; fi
+    printf "\b]\033[0;0;0m\n"
+    if [[ "$INHERIT_SUBS_" == true ]]; then printf " + ???"; fi
+    fi
 printf "\033[2;3;7mCover Image: JPEG [$COVER_FINAL_DIMS_]\033[0;0;0m\n"
 printf "\033[2;3;7mTitle: \"${TITLE_//%/%%}\"\033[0;0;0m\n"
 
 # CONVERTING THE INPUT'S AUDIO TO AAC
 if [[ ( "$AAC_AUDIO_" == true ) && ( "$AUDIO_COD" != "AAC"* ) && ( "$RENAME_ONLY_" == false ) ]]; then
-	if [[ "$AAC_SETTINGS_" =~ ^(([[:digit:]]{2,5}k|[[:digit:]]{1,2}M)(b(its?)?([p/]s(ec)?)?)?|([Vv][Bb][Rr]|~)[1-5])$ ]]; then
-		if [[ "$AAC_SETTINGS" =~ ^[Vv][Bb][Rr].* ]]; then AAC_QUALITY_="-vbr ${AAC_SETTINGS_:3:1}"
-		elif [[ "$AAC_SETTINGS" =~ ^~.* ]]; then AAC_QUALITY_="-vbr ${AAC_SETTINGS_:1:1}"
-		else AAC_QUALITY_="-ab ${AAC_SETTINGS_//[^[:digit:]kM]//}"; fi
-	else
-		error critical "Invalid AAC audio track specification '$AAC_SETTINGS'\n" 50
-		fi
-	if ! [[ -e '/usr/include/fdk-aac/aacenc_lib.h' ]]; then 
-		error critical "libfdk-aac-dev is missing...\n" 51
-		fi
-	if [[ "$TEST_MODE_" == true ]]; then 
-		printf "\nffmpeg -v quiet -hide-banner -i \"${INPUT_//%/%%}\" -vn -sn -acodec libfdk_aac -ac $AUDIO_CHA_ $AAC_QUALITY_ \"${INPUT_%.*}.aac\"\n"
-	elif ! ffmpeg -v quiet -hide-banner -i "$INPUT_" -vn -sn -acodec libfdk_aac -ac $AUDIO_CHA_ $AAC_QUALITY_ "${INPUT_%.*}.aac"; then
-		AAC_AUDIO_=false
-		TRACK_1_="$TRACK_0_"
-		error critical "Failed to convert input audio to AAC...\n" 51
-		fi
-	fi
+    if [[ "$AAC_SETTINGS_" =~ ^(([[:digit:]]{2,5}k|[[:digit:]]{1,2}M)(b(its?)?([p/]s(ec)?)?)?|([Vv][Bb][Rr]|~)[1-5])$ ]]; then
+        if [[ "$AAC_SETTINGS" =~ ^[Vv][Bb][Rr].* ]]; then AAC_QUALITY_="-vbr ${AAC_SETTINGS_:3:1}"
+        elif [[ "$AAC_SETTINGS" =~ ^~.* ]]; then AAC_QUALITY_="-vbr ${AAC_SETTINGS_:1:1}"
+        else AAC_QUALITY_="-ab ${AAC_SETTINGS_//[^[:digit:]kM]//}"; fi
+    else
+        error critical "Invalid AAC audio track specification '$AAC_SETTINGS'\n" 50
+        fi
+    if ! [[ -e '/usr/include/fdk-aac/aacenc_lib.h' ]]; then 
+        error critical "libfdk-aac-dev is missing...\n" 51
+        fi
+    if [[ "$TEST_MODE_" == true ]]; then 
+        printf "\nffmpeg -v quiet -hide-banner -i \"${INPUT_//%/%%}\" -vn -sn -acodec libfdk_aac -ac $AUDIO_CHA_ $AAC_QUALITY_ \"${INPUT_%.*}.aac\"\n"
+    elif ! ffmpeg -v quiet -hide-banner -i "$INPUT_" -vn -sn -acodec libfdk_aac -ac $AUDIO_CHA_ $AAC_QUALITY_ "${INPUT_%.*}.aac"; then
+        AAC_AUDIO_=false
+        TRACK_1_="$TRACK_0_"
+        error critical "Failed to convert input audio to AAC...\n" 51
+        fi
+    fi
 
 # CLEANING THE COVER IMAGE BEFORE USING IT, IF ONE EXISTS
 if [[ -f "$COVER_FILE_" ]] && \
-		[[ ( "$COVER_FILE_" =~ ^.*\.[Jj][Pp][Ee]?[Gg]$ ) && ( "$RENAME_ONLY_" == false ) ]]; then
-	FINAL_LOWLEVEL_CL_+="jpegoptim --strip-all \"$COVER_FILE_\"; mat \"$COVER_FILE_\"; "
-	fi
+        [[ ( "$COVER_FILE_" =~ ^.*\.[Jj][Pp][Ee]?[Gg]$ ) && ( "$RENAME_ONLY_" == false ) ]]; then
+    FINAL_LOWLEVEL_CL_+="jpegoptim --strip-all \"$COVER_FILE_\"; mat \"$COVER_FILE_\"; "
+    fi
 
 # CONSTRUCTING THE 'mkvmerge' COMMAND LINE
 if [[ "$RENAME_ONLY_" == false ]]; then
@@ -643,32 +643,32 @@ fi
 # RUNNING OR PRINTING THE FINAL COMMAND LINE AND REMOVING FILES AS NEEDED OR WANTED
 printf "\n------------------------------------------ ----- ---- --- -- -\n\n"
 if [[ "$TEST_MODE_" == false ]]; then 
-	printf "${OPS_OUT_//%/%%}\n"
-	bash -c "$FINAL_LOWLEVEL_CL_"
-	discard_tmps
-	if [[ $? -ne 0 ]]; then 
-		exit 1
-	elif [[ "$REMOVE_ALL_" == true ]]; then
-		rm -f "$INPUT_" &> /dev/null
-		if [[ "$OUTPUT_" == "$INPUT_.tmp" ]]; then mv -f "$OUTPUT_" "$INPUT_" &> /dev/null; fi
-		if [[ "$ADD_SUBTITLES_" == true ]]; then
-			for i in `seq 0 $((j - 1))`; do	
-				rm -f "${SUB_LIST_[i]}" &> /dev/null
-				rm -f "${OLD_SUB_LIST_[i]}" &> /dev/null
-				done
-			fi
-		if [[ "$COVER_FILE_" == "/tmp/nicemkv.cover.jpg" ]]; then rm -f "$OLD_COVER_FILE_" &> /dev/null
-		elif [[ -f "$COVER_FILE_" ]]; then rm -f "$COVER_FILE_" &> /dev/null; fi
-		if [[ -f "$AUDIO_SOURCE_" ]]; then rm -f "$AUDIO_SOURCE_" &> /dev/null; fi
-	elif [[ "$REMOVE_REPLACE_" == true ]]; then
-		rm -f "$INPUT_" &> /dev/null
-		if [[ "$OUTPUT_" == "$INPUT_.tmp" ]]; then mv -f "$OUTPUT_" "$INPUT_" &> /dev/null; fi
-		fi
+    printf "${OPS_OUT_//%/%%}\n"
+    bash -c "$FINAL_LOWLEVEL_CL_"
+    discard_tmps
+    if [[ $? -ne 0 ]]; then 
+        exit 1
+    elif [[ "$REMOVE_ALL_" == true ]]; then
+        rm -f "$INPUT_" &> /dev/null
+        if [[ "$OUTPUT_" == "$INPUT_.tmp" ]]; then mv -f "$OUTPUT_" "$INPUT_" &> /dev/null; fi
+        if [[ "$ADD_SUBTITLES_" == true ]]; then
+            for i in `seq 0 $((j - 1))`; do    
+                rm -f "${SUB_LIST_[i]}" &> /dev/null
+                rm -f "${OLD_SUB_LIST_[i]}" &> /dev/null
+                done
+            fi
+        if [[ "$COVER_FILE_" == "/tmp/nicemkv.cover.jpg" ]]; then rm -f "$OLD_COVER_FILE_" &> /dev/null
+        elif [[ -f "$COVER_FILE_" ]]; then rm -f "$COVER_FILE_" &> /dev/null; fi
+        if [[ -f "$AUDIO_SOURCE_" ]]; then rm -f "$AUDIO_SOURCE_" &> /dev/null; fi
+    elif [[ "$REMOVE_REPLACE_" == true ]]; then
+        rm -f "$INPUT_" &> /dev/null
+        if [[ "$OUTPUT_" == "$INPUT_.tmp" ]]; then mv -f "$OUTPUT_" "$INPUT_" &> /dev/null; fi
+        fi
 else 
-	printf "GENERATED LOW-LEVEL COMMAND LINE:\n"
-	printf "\033[3;2;36m${PREVIOUS__LINES_//%/%%}\n\033[0;0;36m${FINAL_LOWLEVEL_CL_//%/%%}\033[0m\n\n"
-	discard_tmps
-	fi
+    printf "GENERATED LOW-LEVEL COMMAND LINE:\n"
+    printf "\033[3;2;36m${PREVIOUS__LINES_//%/%%}\n\033[0;0;36m${FINAL_LOWLEVEL_CL_//%/%%}\033[0m\n\n"
+    discard_tmps
+    fi
 
 ###############################################################################################
 exit
