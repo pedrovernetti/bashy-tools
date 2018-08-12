@@ -1,41 +1,134 @@
 #!/bin/bash
 
-if [[ "$*" =~ ^([[:graph:]]*[^[:graph:]]+)?-h([^[:graph:]]+[[:graph:]]*)?$ ]]; then
-	printf "Usage: ${0##*/} <MUSIC_ALBUM_FOLDER> <MUSIC_ALBUM_COVER>\n\n"
-	printf "Inserts the given Album Cover into every audio file inside the given folder.\n"
-	printf "Cover image must be of at least 500x500 and supported by imagemagick.\n"
-	printf "Images larger than 500x500 are automaticaly scaled down.\n"
-	printf "The metadata inside the images are automaticaly erased to save space.\n"
-	printf "Previous album arts are removed from the audio files.\n"
-	printf "Audio format detection relies on file extensions.\n"
-	fi
+# HELP ------------------------------------------------------------------------
+help_message ()
+{
+	printf "Usage: ${0##*/} [OPTIONS] MUSIC_ALBUM_FOLDER [MUSIC_ALBUM_COVER]\n\n"
+	printf "  Inserts the given Album Cover into every audio file inside the given folder.\n\n"
+	if [[ "$1" == "full" ]]; then
+		printf "  Options:\n\n"
+		printf "  -h        print this help message and exit\n"
+		printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
+		printf "  -C        auto-rename and move the cover image file\n"
+		printf "  -i        try using a cover image file inside the folder\n"
+		printf "  -J        remove known junk files inside the folder\n"
+		printf "  -T        do not clear the thumbnails cache after running\n\n"
+	    printf "  Cover image must be of at least 500x500 and supported by imagemagick.\n"
+	    printf "  Images larger than 500x500 are automaticaly copied and scaled down.\n"
+	    printf "  The metadata inside the images are automaticaly erased to save space.\n"
+		printf "  Non-JPEG/PNG cover images are converted before being attached.\n"
+	    printf "  Previous album arts are NOT removed from mp4-style audio files.\n"
+	    printf "  Audio format detection relies on file extensions.\n"
+	    printf "  Thumbnails cache is cleared in the end, so that the changes can be noticed.\n\n"
+	    exit 0
+	else
+		exit 1
+		fi
+}
 
-if ! hash AtomicParsley; then sudo apt-get -y install atomicparsley; fi
-if ! hash convert; then sudo apt-get -y install imagemagick; fi
-if ! hash jpegoptim; then sudo apt-get -y install jpegoptim; fi
-if ! hash mat; then sudo apt-get -y install mat; fi
+# DEALING WITH DEPENDENCIES ---------------------------------------------------
+install_dependencies ()
+{
+    sudo apt-get -y install atomicparsley
+    sudo apt-get -y install imagemagick
+    sudo apt-get -y install jpegoptim
+}
 
-if [[ "$2" =~ ^([-._ ]+|[Rr][Ee][Mm][Oo][Vv][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Cc][Ll][Ee][Aa][Rr]|[Nn][Oo][Nn][Ee])$ ]]; then
+if ! hash AtomicParsley; then printf "Unmet dependency: AtomicParsley\n"; exit 100; fi
+if ! hash convert; then printf "Unmet dependency: imagemagick\n"; exit 100; fi
+if ! hash jpegoptim; then printf "Unmet dependency: jpegoptim\n"; exit 100; fi
+
+# SETTING DEFAULT VALUES ------------------------------------------------------
+remove_cover_rx='^([-._ ]+|[Rr][Ee][Mm][Oo][Vv][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|'
+remove_cover_rx+='[Cc][Ll][Ee][Aa][Rr]|[Nn][Oo][Nn][Ee])$'
+weird_image_rx='^.*\.((web|w?bm)p|bm|d(cr|ib)|(bp|mn)g|j(p[2fx]|ng|xr)|tiff?|'
+weird_image_rx+='(fl|qt?)if|p[abgnp]m|x[bp]m|c(r[2w]|in)|[hw]dp)$'
+weird_image_w_alpha_rx='^.*\.(p(s[bd]|cx)|(gi|wm)f|a(png|i)|svgz?|eps[fi]?|'
+weird_image_w_alpha_rx+='ic(o|ns)|vsd)$'
+audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc])$'
+junk_rx='^(([Ff][Oo][Ll][Dd][Ee][Rr]|AlbumArt.*)\.((jpe?|pn)g|jpe|bmp)|'
+junk_rx+='[Tt][Hh][Uu][Mm][Bb][Ss]\.[Dd][Bb])$'
+MOVE_ART=false
+COVER_IS_INSIDE=false
+REMOVE_JUNK=false
+REMOVE_COVER=false
+KEEP_THUMBS_CACHE=false
+
+# DEALING WITH COMMAND LINE ARGUMENTS -----------------------------------------
+ARG_A="${@:(-2):1}"
+ARG_B="${!#}"
+for i in `seq 1 $#`; do
+    if [[ "${!i}" =~ ^-(h|-?help)$ ]]; then 
+        help_message full
+    elif [[ "${!i}" =~ ^--?prepare$ ]]; then 
+        install_dependencies
+    elif [[ "${!i}" =~ ^-(C|-move-cover)$ ]]; then 
+        MOVE_ART=true
+    elif [[ "${!i}" =~ ^-(i|-cover-is-inside)$ ]]; then 
+        COVER_IS_INSIDE=true
+        ARG_A="$ARG_B"
+    elif [[ "${!i}" =~ ^-(J|-remove-junk)$ ]]; then 
+        REMOVE_JUNK=true
+    elif [[ "${!i}" =~ ^-(r|-remove-cover)$ ]]; then 
+        REMOVE_COVER=true
+    elif [[ "${!i}" =~ ^-(T|-keep-thumbnails-cache)$ ]]; then 
+        KEEP_THUMBS_CACHE=true
+        fi
+    done
+if [[ ( $# -eq 0 ) || ( "$ARG_A" == "$0" ) ]]; then
+    help_message short
+elif ! [[ -d "$ARG_A" ]]; then
+    echo "'$ARG_A' is not a folder"
+    exit 99
+elif ! [[ -f "$ARG_B" ]]; then
+    if [[ "$COVER_IS_INSIDE" != true ]]; then
+        echo "no valid file given as cover image"
+        exit 99
+        fi
+    fi
+
+# LOOKING FOR A COVER IMAGE INSIDE THE FOLDER WHEN DEMANDED -------------------
+if [[ "$COVER_IS_INSIDE" == true ]]; then
+    lowercase_cover_rx='^.*\.(jp(e?g|e)|png)$'
+    possible_covers_count=0
+    while read -r i; do
+        if [[ "${i,,}" =~ $lowercase_cover_rx ]]; then
+            possible_covers_count=$((possible_covers_count + 1))
+            cover_found="$i"
+            fi
+        done <<< $(find "$ARG_A" -maxdepth 1 -type f)
+    if [[ "$possible_covers_count" -eq 1 ]]; then
+        ARG_B="$cover_found"
+    else
+		echo "no cover image candidate found"
+        exit 20
+        fi
+    fi
+        
+# PREPARING TO REMOVE THE COVER WHEN WANTED -----------------------------------
+if [[ ( "$ARG_B" =~ $remove_cover_rx ) || ( "$REMOVE_COVER" == true ) ]]; then
 	art="REMOVE_ALL"
+	
+# DEALING WITH THE COVER IMAGE ------------------------------------------------
 else
-	if [[ ( -f "$2" ) && ( -r "$2" ) ]]; then art="$2"
-	elif wget -O /tmp/aa.cover.tmp -c "$2"; then art="/tmp/aa.cover.tmp"; IS_TEMP=true
-	else echo "Cannot access '$2'"; exit 3; fi
+	if [[ ( -f "$ARG_B" ) && ( -r "$ARG_B" ) ]]; then art="$ARG_B"
+	elif wget -O /tmp/aa.cover.tmp -c "$ARG_B"; then art="/tmp/aa.cover.tmp"; IS_TEMP=true
+	else echo "Cannot access '$ARG_B'"; exit 3; fi
 	width=$(identify -ping -format '%W\n%H' "$art" | sed '1q;d')
 	height=$(identify -ping -format '%W\n%H' "$art" | sed '2q;d')
 	IS_TEMP=false
 	art_lowercase=$(echo "$art" | tr '[:upper:]' '[:lower:]')
 
-	if [[ "$art_lowercase" =~ ^.*\.((web|w?bm)p|bm|d(cr|ib)|(bp|mn)g|j(p[2fx]|ng|xr)|tiff?|(fl|qt?)if|p[abgnp]m|x[bp]m|c(r[2w]|in)|[hw]dp)$ ]]; then
+	if [[ "$art_lowercase" =~ $weird_image_rx ]]; then
 		conv_art="${art%.*}\.$RANDOM\.${art##*.}"
 		convert "$art" -format jpg -quality 95 "$conv_art"
 		IS_TEMP=true
-	elif [[ "$art_lowercase" =~ ^.*\.(p(s[bd]|cx)|(gi|wm)f|a(png|i)|svgz?|eps[fi]?|ic(o|ns)|vsd)$ ]]; then
+	elif [[ "$art_lowercase" =~ $weird_image_w_alpha_rx ]]; then
 		conv_art="${art%.*}\.$RANDOM\.${art##*.}"
 		convert "$art" -format png "$conv_art"
 		IS_TEMP=true
 	elif ! [[ ( "$art_lowercase" =~ ^.*\.((jpe?|pn)g|jpe)$ ) || ( $(xdg-mime query filetype "$art") =~ ^image/(jpeg|png)$ ) ]]; then
-		echo "'$2' is not an image"
+		echo "'$ARG_B' is not an image"
 		exit 9
 		fi
 	if [[ $width -ge $height ]]; then IS_SQUARE=$((width / ((width - height) + 1)))
@@ -63,26 +156,48 @@ else
 		fi
 	fi
 
+# OPTIMIZING JPEG COVER IMAGES ------------------------------------------------
 if [[ "$art" == *.jpg ]]; then jpegoptim --strip-all "$art"; fi
-mat "$art"
 
-audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc])$'
-junk_rx='^(([Ff][Oo][Ll][Dd][Ee][Rr]|AlbumArt.*)\.((jpe?|pn)g|jpe|bmp)|[Tt][Hh][Uu][Mm][Bb][Ss]\.[Dd][Bb])$'
-audio_content=$(find "$1" -regextype posix-extended -type f -regex "$audio_rx" -printf "%p\n")
+# GETTING THE LIST OF AUDIO FILES INSIDE THE GIVEN FOLDER ---------------------
+audio_content=$(find "$ARG_A" -regextype posix-extended \
+                    -type f -regex "$audio_rx" -printf "%p\n")
 
+# EMBEDDING COVER IMAGES INTO AUDIO FILES -------------------------------------
 while read -r buffer; do
 	if [[ "$buffer" =~ ^.*\.([Mm][Pp][23]|[Aa][Aa][Cc])$ ]]; then
-		eyeD3 -v --to-v2.3 --strict --no-tagging-time-frame --remove-images "$buffer"
-		eyeD3 -v -add-image="$art":FRONT_COVER --strict --no-tagging-time-frame --remove-images "$buffer"
+		eyeD3 -v --to-v2.3 --strict --no-tagging-time-frame
+		    --remove-images "$buffer"
+		eyeD3 -v -add-image="$art":FRONT_COVER --strict --no-tagging-time-frame 
+		    --remove-images "$buffer"
 	elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
-		AtomicParsley "$buffer" --artwork REMOVE_ALL
 		AtomicParsley "$buffer" --artwork "$art"
-	elif [[ "$buffer" =~ ^.*\.([Mm][Pp][Cc]|[Aa][Pp][Ee])$ ]]; then
-		
+		mv -f "${buffer%.*}-temp-"*.m4? "$buffer"
+	#elif [[ "$buffer" =~ ^.*\.([Mm][Pp][Cc]|[Aa][Pp][Ee])$ ]]; then
+	#	
+	    fi
 	done <<< "$audio_content"
 
-find "$1" -type f -iname '*.m4?' -exec rename -fv 's/-temp-[[:digit:]]{1,6}\.m4([AaBb])$/.m4\1/' "{}" \;
-find "$1" -type f -regextype posix-extended -regex "$junk_rx" -delete
+# AUTO-RENAMING AND MOVING COVER IMAGE IF WANTED ------------------------------
+if [[ "$MOVE_ART" == true ]]; then
+    AUTO_ART="${art%/*}.${art##*.}"
+    AUTO_ART="${AUTO_ART##*/}"
+    mv -f "$art" "${ARG_A%/*}/$AUTO_ART"
+    fi
+    
+# REMOVING JUNK FILES IF WANTED -----------------------------------------------
+if [[ "$REMOVE_JUNK" == true ]]; then    
+    find "$ARG_A" -type f -regextype posix-extended -regex "$junk_rx" -delete
+    fi
 
-if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
+# REMOVING THE COVER IMAGE IF IT IS TEMPORARY ---------------------------------
+if [[ "$IS_TEMP" == true ]]; then 
+    rm -f "$art" &> /dev/null
+    fi
+
+# CLEARING THE THUMBNAILS CACHE SO THAT THE CHANGES CAN BE NOTICED ------------
+if [[ "$KEEP_THUMBS_CACHE" == false ]]; then
+    rm -fr ~/.cache/thumbnails/*/*
+    fi
+
 
