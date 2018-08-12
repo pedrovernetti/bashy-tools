@@ -44,6 +44,7 @@ install_dependencies ()
 {
     sudo apt-get -y install atomicparsley
     sudo apt-get -y install eyed3
+    sudo apt-get -y install flac
     sudo apt-get -y install imagemagick
     sudo apt-get -y install jpegoptim
     sudo apt-get -y install wget
@@ -58,7 +59,8 @@ weird_image_rx+='(fl|qt?)if|p[abgnp]m|x[bp]m|c(r[2w]|in)|[hw]dp)$'
 weird_image_w_alpha_rx='^.*\.(p(s[bd]|cx)|(gi|wm)f|a(png|i)|svgz?|eps[fi]?|'
 weird_image_w_alpha_rx+='ic(o|ns)|vsd)$'
 image_rx='^.*\.((jpe?|pn)g|jpe)$'
-audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc])$'
+audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc]|'
+audio_rx+='flac)$'
 junk_rx='^(([Ff][Oo][Ll][Dd][Ee][Rr]|AlbumArt.*)\.((jpe?|pn)g|jpe|bmp)|'
 junk_rx+='[Tt][Hh][Uu][Mm][Bb][Ss]\.[Dd][Bb])$'
 MOVE_ART=false
@@ -109,6 +111,8 @@ if ! hash AtomicParsley &> /dev/null; then
     printf "Unmet dependency: AtomicParsley\n"; exit 100; fi
 if ! hash eyeD3 &> /dev/null; then 
     printf "Unmet dependency: eyeD3\n"; exit 100; fi
+if ! hash metaflac &> /dev/null; then 
+    printf "Unmet dependency: flac\n"; exit 100; fi
 if ! hash convert &> /dev/null; then 
     printf "Unmet dependency: imagemagick\n"; exit 100; fi
 if ! hash jpegoptim &> /dev/null; then 
@@ -215,6 +219,9 @@ while read -r buffer; do
 	elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
 		AtomicParsley "$buffer" --artwork "$art"
 		mv -f "${buffer%.*}-temp-"*.m4? "$buffer"
+    elif [[ "$buffer" =~ ^.*\.[Ff][Ll][Aa][Cc]$ ]]; then
+        metaflac --remove --block-type=PICTURE "$buffer"
+        metaflac --import-picture-from="$art" "$buffer"
 	#elif [[ "$buffer" =~ ^.*\.([Mm][Pp][Cc]|[Aa][Pp][Ee])$ ]]; then
 	#	
 	    fi
