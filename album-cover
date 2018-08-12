@@ -39,17 +39,16 @@ help_message ()
 		fi
 }
 
-# DEALING WITH DEPENDENCIES ---------------------------------------------------
+# INSTALLING DEPENDENCIES IF DEMANDED -----------------------------------------
 install_dependencies ()
 {
     sudo apt-get -y install atomicparsley
+    sudo apt-get -y install eyed3
     sudo apt-get -y install imagemagick
     sudo apt-get -y install jpegoptim
+    sudo apt-get -y install wget
+    exit
 }
-
-if ! hash AtomicParsley; then printf "Unmet dependency: AtomicParsley\n"; exit 100; fi
-if ! hash convert; then printf "Unmet dependency: imagemagick\n"; exit 100; fi
-if ! hash jpegoptim; then printf "Unmet dependency: jpegoptim\n"; exit 100; fi
 
 # SETTING DEFAULT VALUES ------------------------------------------------------
 remove_cover_rx='^([-._ ]+|[Rr][Ee][Mm][Oo][Vv][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|'
@@ -104,6 +103,18 @@ elif ! [[ -f "$ARG_B" ]]; then
         exit 99
         fi
     fi
+
+# CHECKING DEPENDENCIES -------------------------------------------------------
+if ! hash AtomicParsley &> /dev/null; then 
+    printf "Unmet dependency: AtomicParsley\n"; exit 100; fi
+if ! hash eyeD3 &> /dev/null; then 
+    printf "Unmet dependency: eyeD3\n"; exit 100; fi
+if ! hash convert &> /dev/null; then 
+    printf "Unmet dependency: imagemagick\n"; exit 100; fi
+if ! hash jpegoptim &> /dev/null; then 
+    printf "Unmet dependency: jpegoptim\n"; exit 100; fi
+if ! hash wget &> /dev/null; then 
+    printf "Unmet dependency: wget\n"; exit 100; fi
 
 # LOOKING FOR A COVER IMAGE INSIDE THE FOLDER WHEN DEMANDED -------------------
 if [[ "$COVER_IS_INSIDE" == true ]]; then
@@ -199,10 +210,10 @@ audio_content=$(find "$ARG_A" -regextype posix-extended \
 # EMBEDDING COVER IMAGES INTO AUDIO FILES -------------------------------------
 while read -r buffer; do
 	if [[ "$buffer" =~ ^.*\.([Mm][Pp][23]|[Aa][Aa][Cc])$ ]]; then
-		eyeD3 -v --to-v2.3 --strict --no-tagging-time-frame
-		    --remove-images "$buffer"
-		eyeD3 -v -add-image="$art":FRONT_COVER --strict --no-tagging-time-frame 
-		    --remove-images "$buffer"
+		eyeD3 -v --to-v2.3 --strict --no-tagging-time-frame --remove-images \
+		    "$buffer"
+		eyeD3 -v --strict --no-tagging-time-frame --remove-images \
+		      -add-image="$art":FRONT_COVER "$buffer"
 	elif [[ "$buffer" =~ ^.*\.[Mm](4[AaBb]|[Pp]4)$ ]]; then
 		AtomicParsley "$buffer" --artwork "$art"
 		mv -f "${buffer%.*}-temp-"*.m4? "$buffer"
@@ -213,9 +224,7 @@ while read -r buffer; do
 
 # AUTO-RENAMING AND MOVING COVER IMAGE IF WANTED ------------------------------
 if [[ "$MOVE_ART" == true ]]; then
-    AUTO_ART="${ARG_B%/*}.${ARG_B##*.}"
-    AUTO_ART="${AUTO_ART##*/}"
-    mv -f "$art" "${ARG_A%/*}/$AUTO_ART"
+    mv -f "$ARG_B" "${ARG_A%/*}/${ARG_A##*/}.${ARG_B##*.}"
     fi
     
 # REMOVING JUNK FILES IF WANTED -----------------------------------------------
