@@ -45,6 +45,7 @@ install_dependencies ()
     sudo apt-get -y install atomicparsley
     sudo apt-get -y install eyed3
     sudo apt-get -y install flac
+    sudo apt-get -y install vorbis-tools
     sudo apt-get -y install imagemagick
     sudo apt-get -y install jpegoptim
     sudo apt-get -y install wget
@@ -60,7 +61,7 @@ weird_image_w_alpha_rx='^.*\.(p(s[bd]|cx)|(gi|wm)f|a(png|i)|svgz?|eps[fi]?|'
 weird_image_w_alpha_rx+='ic(o|ns)|vsd)$'
 image_rx='^.*\.((jpe?|pn)g|jpe)$'
 audio_rx='^.*\.([Mm]([Pp][+234Cc]|4[AaBb])|[Ww][Vv]|[Aa][Pp][Ee]|[Aa][Aa][Cc]|'
-audio_rx+='flac)$'
+audio_rx+='[Ff][LL][Aa][Cc]|[Oo][Gg][AaGg]|[Aa][Ss][Ff]|[Ww][Mm][Aa])$'
 junk_rx='^(([Ff][Oo][Ll][Dd][Ee][Rr]|AlbumArt.*)\.((jpe?|pn)g|jpe|bmp)|'
 junk_rx+='[Tt][Hh][Uu][Mm][Bb][Ss]\.[Dd][Bb])$'
 MOVE_ART=false
@@ -113,6 +114,8 @@ if ! hash eyeD3 &> /dev/null; then
     printf "Unmet dependency: eyeD3\n"; exit 100; fi
 if ! hash metaflac &> /dev/null; then 
     printf "Unmet dependency: flac\n"; exit 100; fi
+if ! hash vorbiscomment &> /dev/null; then 
+    printf "Unmet dependency: vorbis-tools\n"; exit 100; fi
 if ! hash convert &> /dev/null; then 
     printf "Unmet dependency: imagemagick\n"; exit 100; fi
 if ! hash jpegoptim &> /dev/null; then 
@@ -222,8 +225,14 @@ while read -r buffer; do
     elif [[ "$buffer" =~ ^.*\.[Ff][Ll][Aa][Cc]$ ]]; then
         metaflac --remove --block-type=PICTURE "$buffer"
         metaflac --import-picture-from="$art" "$buffer"
-	#elif [[ "$buffer" =~ ^.*\.([Mm][Pp][Cc]|[Aa][Pp][Ee])$ ]]; then
-	#	
+    elif [[ "$buffer" =~ ^.*\.[Oo][Gg][AaGg]$ ]]; then
+        echo "Ogg files not supported"
+	elif [[ "$buffer" =~ ^.*\.([Mm][Pp][+Cc]|[Aa][Pp][Ee])$ ]]; then
+	    echo "APEv2-tagged files not supported"	
+	elif [[ "$buffer" =~ ^.*\.[Ww][Vv]$ ]]; then
+        echo "WavPack files not supported"
+	elif [[ "$buffer" =~ ^.*\.([Aa][Ss][Ff]|[Ww][Mm][Aa])$ ]]; then
+        echo "Windows Media files not supported"
 	    fi
 	done <<< "$audio_content"
 
