@@ -201,7 +201,10 @@ if [[ ( $W -gt 500 ) || ( $H -gt 500 ) ]]; then
     if [[ "$IS_TEMP" == true ]]; then rm -f "$art" &> /dev/null; fi
     art="$resized_art"
     IS_TEMP=true
-elif [[ ( $W -lt 499 ) || ( $H -lt 499 ) ]]; then
+elif [[ (( $W -lt 499 ) || ( $H -lt 499 )) && ("$OK_NONSQUARE" == false) ]]; then
+    echo "Small image... [$W x $H]"
+    exit 11
+elif [[ ( $W -lt 499 ) && ( $H -lt 499 ) ]]; then
     echo "Small image... [$W x $H]"
     exit 11
     fi
