@@ -22,9 +22,11 @@ help_message ()
         printf "  -h        print this help message and exit\n"
         printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
         printf "  -C        auto-rename and move the cover image file\n"
+        printf "  -I        same as -i and -r options together\n"
         printf "  -i        try using a cover image file inside the folder\n"
         printf "  -J        remove known junk files inside the folder\n"
         printf "  -Q        do not complain about non-square cover images\n\n"
+        printf "  -r        remove cover image when successful\n\n"
         printf "  -T        do not clear the thumbnails cache after running\n\n"
         printf "  Cover image must be of at least 500x500 and supported by imagemagick.\n"
         printf "  Images larger than 500x500 are automaticaly copied and scaled down.\n"
@@ -69,6 +71,7 @@ COVER_IS_INSIDE=false
 REMOVE_JUNK=false
 OK_NONSQUARE=false
 REMOVE_COVER=false
+REMOVE_IMAGE=false
 KEEP_THUMBS_CACHE=false
 IS_TEMP=false
 
@@ -76,22 +79,18 @@ IS_TEMP=false
 ARG_A="${@:(-2):1}"
 ARG_B="${!#}"
 for i in `seq 1 $#`; do
-    if [[ "${!i}" =~ ^-(h|-?help)$ ]]; then 
-        help_message full
-    elif [[ "${!i}" =~ ^--?prepare$ ]]; then 
-        install_dependencies
-    elif [[ "${!i}" =~ ^-(C|-move-cover)$ ]]; then 
-        MOVE_ART=true
-    elif [[ "${!i}" =~ ^-(i|-cover-is-inside)$ ]]; then 
+    if [[ "${!i}" =~ ^-(h|-?help)$ ]]; then help_message full; fi
+    if [[ "${!i}" =~ ^--?prepare$ ]]; then install_dependencies; fi
+    if [[ "${!i}" =~ ^-(C|-move-cover)$ ]]; then MOVE_ART=true; fi
+    if [[ "${!i}" =~ ^-([Ii]|-cover-is-inside)$ ]]; then 
         COVER_IS_INSIDE=true
         ARG_A="$ARG_B"
-    elif [[ "${!i}" =~ ^-(J|-remove-junk)$ ]]; then 
-        REMOVE_JUNK=true
-    elif [[ "${!i}" =~ ^-(Q|-nonsquare-ok)$ ]]; then 
-        OK_NONSQUARE=true
-    elif [[ "${!i}" =~ ^-(r|-remove-cover)$ ]]; then 
-        REMOVE_COVER=true
-    elif [[ "${!i}" =~ ^-(T|-keep-thumbnails-cache)$ ]]; then 
+        fi
+    if [[ "${!i}" =~ ^-(J|-remove-junk)$ ]]; then  REMOVE_JUNK=true; fi
+    if [[ "${!i}" =~ ^-(Q|-nonsquare-ok)$ ]]; then OK_NONSQUARE=true; fi
+    if [[ "${!i}" =~ ^-(R|-remove-cover)$ ]]; then REMOVE_COVER=true; fi
+    if [[ "${!i}" =~ ^-([Ir]|-remove-image)$ ]]; then REMOVE_IMAGE=true; fi
+    if [[ "${!i}" =~ ^-(T|-keep-thumbnails-cache)$ ]]; then 
         KEEP_THUMBS_CACHE=true
         fi
     done
@@ -249,6 +248,12 @@ if [[ "$REMOVE_JUNK" == true ]]; then
 # REMOVING THE COVER IMAGE IF IT IS TEMPORARY ---------------------------------
 if [[ "$IS_TEMP" == true ]]; then 
     rm -f "$art" &> /dev/null
+    fi
+
+# REMOVING THE COVER IMAGE IF WANTED ------------------------------------------
+if [[ "$REMOVE_IMAGE" == true ]]; then 
+    rm -f "$art" &> /dev/null
+    rm -f "$ARG_B" &> /dev/null
     fi
 
 # CLEARING THE THUMBNAILS CACHE SO THAT THE CHANGES CAN BE NOTICED ------------
