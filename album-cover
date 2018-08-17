@@ -99,7 +99,8 @@ if [[ ( $# -eq 0 ) || ( "$ARG_A" == "$0" ) ]]; then
 elif ! [[ -d "$ARG_A" ]]; then
     echo "'$ARG_A' is not a folder"
     exit 99
-elif ! [[ -f "$ARG_B" ]]; then
+elif ! [[ ( -f "$ARG_B" ) || 
+            (( "$ARG_B" =~ ^(ht|f)tp.* ) && ("$ARG_B" =~ $image_rx )) ]]; then
     if [[ "$COVER_IS_INSIDE" != true ]]; then
         echo "no valid file given as cover image"
         exit 99
@@ -147,8 +148,8 @@ if [[ ( "$ARG_B" =~ $remove_cover_rx ) || ( "$REMOVE_COVER" == true ) ]]; then
 # DEALING WITH THE COVER IMAGE ------------------------------------------------
 elif [[ ( -f "$ARG_B" ) && ( -r "$ARG_B" ) ]]; then 
     art="$ARG_B"
-elif wget -O /tmp/aa.cover.tmp -c "$ARG_B" &> /dev/null; then 
-    art="/tmp/aa.cover.tmp"; IS_TEMP=true
+elif wget -O /tmp/"aa.cover.tmp.${ARG_B##*.}" -c "$ARG_B" &> /dev/null; then 
+    art="/tmp/aa.cover.tmp.${ARG_B##*.}"; ARG_B="$art"; IS_TEMP=true
 else 
     echo "Cannot access '$ARG_B'"
     exit 3
