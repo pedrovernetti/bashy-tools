@@ -96,7 +96,7 @@ for i in `seq 1 $#`; do
     done
 if [[ ( $# -eq 0 ) || ( "$ARG_A" == "$0" ) ]]; then
     help_message short
-elif ! [[ -d "$ARG_A" ]]; then
+elif ! [[ ( -d "$ARG_A" ) || ( -f "$ARG_A" ) ]]; then
     echo "'$ARG_A' is not a folder"
     exit 99
 elif ! [[ ( -f "$ARG_B" ) || 
