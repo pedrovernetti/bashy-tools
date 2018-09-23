@@ -1,0 +1,120 @@
+#!/bin/bash
+
+ # ==================================================== #
+ # This script looks better in a maximized window, on   #
+ # 1360px or wider screens...                           #
+ #                                                      #
+ # Run it with the '-h' option for better understanding #
+ #                                                      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # Originally written by <pedrovernetti@gmail.com>      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # tested in / thought for Ubuntu 16.04 and 18.04       #
+ # ==================================================== #
+
+# HELP ------------------------------------------------------------------------
+help_message ()
+{
+    printf "Usage: ${0##*/} [OPTIONS] BLOG_URL DOWNLOAD_FOLDER\n\n"
+    printf "  Downloads every relevant (>2kB) image from a given blog.\n\n"
+    if [[ "$1" == "full" ]]; then
+        printf "  Options:\n\n"
+        printf "  -h        print this help message and exit\n"
+        printf "  -M \033[2mSIZE\033[0m   do not download images smaller than 'SIZE' bytes\n"
+        printf "  -P        images of each page are downloaded to corresponding subfolders\n"
+        printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n\n"
+        printf "  Currently supported platforms include only Tumblr.\n\n"
+        exit 0
+    else
+        exit 1
+        fi
+}
+
+# INSTALLING DEPENDENCIES IF DEMANDED -----------------------------------------
+install_dependencies ()
+{
+    sudo apt-get -y install wget
+    sudo apt-get -y install grep
+    #sudo apt-get -y install imagemagick
+    #sudo apt-get -y install jpegoptim
+    exit
+}
+
+# DEFINING UTILITY FUNCTIONS --------------------------------------------------
+seems_relevant_by_size ()
+{
+    if [[ "$MINIMUM_SIZE_FILTER" == false ]]; then return 0; fi
+    size=$(wget --spider --server-response "$1" 2>&1 | \
+            grep -Eio '^[\t ]*Content-Length: [[:digit:]]+' | \
+            grep -Eo '[[:digit:]]+')
+    if [[ "$size" -lt $MINSIZE ]]; then return 1
+    else return 0; fi
+}
+
+# SETTING DEFAULT VALUES ------------------------------------------------------
+separator="- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -"
+tld_rx='(com?|org|net)(\.(br|u[ks]))?'
+blog_name_rx='[[:alnum:]_-]+'
+blog_host_rx='tumblr'
+blog_url_rx="$blog_name_rx\.$blog_host_rx\.$tld_rx"
+img_link_rx='src=['\''"]https?://.*?\.(jp(e?g|e)|png|gif|webp)['\''"]'
+SUBFOLDERS=false
+MINIMUM_SIZE_FILTER=false
+MINSIZE=0
+
+# DEALING WITH COMMAND LINE ARGUMENTS -----------------------------------------
+ARG_A="${@:(-2):1}"
+ARG_A="${ARG_A##*://}"
+ARG_A="http://${ARG_A%%\/*}"
+ARG_B="${!#}"
+ARG_B="${ARG_B%\/}"
+for i in `seq 1 $#`; do
+    if [[ "${!i}" =~ ^-(h|-?help)$ ]]; then help_message full; fi
+    if [[ "${!i}" =~ ^-(P|-?create-subfolders)$ ]]; then SUBFOLDERS=true; fi
+    if [[ "${!i}" =~ ^-(M)$ ]]; then
+        MINIMUM_SIZE_FILTER=true
+        i=$((i + 1))
+        MINSIZE="${!i}"
+        fi
+    if [[ "${!i}" =~ ^--?prepare$ ]]; then install_dependencies; fi
+    done
+if ! [[ "$MINSIZE" =~ ^[\t\ ]*[[:digit:]]+[\t\ ]*$ ]]; then
+    echo "'$MINSIZE' is not a valid file size"
+    fi
+if [[ ( $# -eq 0 ) || ( "$ARG_A" == "$0" ) ]]; then
+    help_message short
+elif ! [[ -d "$ARG_B" ]]; then
+    echo "'$ARG_B' is not a valid folder"
+    exit 99
+elif ! [[ "$ARG_A" =~ ^https?://$blog_url_rx/?$ ]]; then
+    echo "'$ARG_A' is not a valid blog URL"
+    exit 98
+else
+    BLOG="$ARG_A"
+    DOWNLOAD_FOLDER="$ARG_B"
+    BLOGNAME=$(echo "$BLOG" | grep -Eo "$blog_name_rx\.$blog_host_rx")
+    fi
+
+# DOWNLOADING PAGES AND THEN THE IMAGES REFERENCED THEREIN --------------------
+i=1
+printf "\n\033[1;4;35m${BLOG##*://}\033[0m\n\033[35m$separator\033[0m\n"
+while wget -q -c -O "/tmp/$BLOGNAME" "$BLOG/page/$i"; do
+    if [[ "$SUBFOLDERS" == true ]]; then mkdir "$DOWNLOAD_FOLDER/$i"; fi
+    printf "\n\033[1mPAGE $i\033[0m\n\n"
+    while read -r img_url; do
+        img_url="${img_url#src=?}"
+        img_url="${img_url%?}"
+        if seems_relevant_by_size $img_url; then
+            img_path="${img_url##*/}"
+            if [[ "$SUBFOLDERS" == true ]]; then img_path="$i/$img_path"; fi
+            img_path="$DOWNLOAD_FOLDER/$img_path"
+            echo "Downloading '$img_url'"
+            wget -q -c -O "$img_path" "$img_url"
+            fi
+        done <<< $(grep -Eio "$img_link_rx" "/tmp/$BLOGNAME")
+    i=$((i+1))
+    done
+
+# REMOVING TEMPORARY FILES ----------------------------------------------------
+rm -fr "/tmp/$BLOGNAME" &> /dev/null
+
