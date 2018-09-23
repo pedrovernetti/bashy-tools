@@ -20,9 +20,12 @@ help_message ()
     if [[ "$1" == "full" ]]; then
         printf "  Options:\n\n"
         printf "  -h        print this help message and exit\n"
+        printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n"
+        printf "  -e \033[2mN\033[0m      finish grabbing at blog's \033[2mN\033[0mth page \n"
         printf "  -M \033[2mSIZE\033[0m   do not download images smaller than 'SIZE' bytes\n"
+        printf "  -O        run jpegoptim on downloaded JPEGs\n"
         printf "  -P        images of each page are downloaded to corresponding subfolders\n"
-        printf "  -prepare  install dependencies (\033[1mmust be runned once\033[0m)\n\n"
+        printf "  -s \033[2mN\033[0m      start grabbing from blog's \033[2mN\033[0mth page \n\n"
         printf "  Currently supported platforms include only Tumblr.\n\n"
         exit 0
     else
@@ -36,8 +39,19 @@ install_dependencies ()
     sudo apt-get -y install wget
     sudo apt-get -y install grep
     #sudo apt-get -y install imagemagick
-    #sudo apt-get -y install jpegoptim
+    sudo apt-get -y install jpegoptim
     exit
+}
+page_url_structure ()
+{
+    if wget -q --spider "$1/page/1" &> /dev/null; then echo "$1/page/"
+    elif wget -q --spider "$1/1" &> /dev/null; then echo "$1/"
+    elif wget -q --spider "$1/new/1" &> /dev/null; then echo "$1/new/"
+    elif wget -q --spider "$1&page" &> /dev/null; then echo "$1&"
+    else
+        echo "could not guess URL structure for '$1'"
+        exit 90
+        fi
 }
 
 # DEFINING UTILITY FUNCTIONS --------------------------------------------------
@@ -58,7 +72,10 @@ blog_name_rx='[[:alnum:]_-]+'
 blog_host_rx='tumblr'
 blog_url_rx="$blog_name_rx\.$blog_host_rx\.$tld_rx"
 img_link_rx='src=['\''"]https?://.*?\.(jp(e?g|e)|png|gif|webp)['\''"]'
+FIRST_PAGE=1
+LAST_PAGE=999999
 SUBFOLDERS=false
+JPEGOPTIM=false
 MINIMUM_SIZE_FILTER=false
 MINSIZE=0
 
@@ -70,35 +87,52 @@ ARG_B="${!#}"
 ARG_B="${ARG_B%\/}"
 for i in `seq 1 $#`; do
     if [[ "${!i}" =~ ^-(h|-?help)$ ]]; then help_message full; fi
-    if [[ "${!i}" =~ ^-(P|-?create-subfolders)$ ]]; then SUBFOLDERS=true; fi
-    if [[ "${!i}" =~ ^-(M)$ ]]; then
+    if [[ "${!i}" =~ ^--?prepare$ ]]; then install_dependencies; fi
+    if [[ "${!i}" =~ ^-(e|-?finish-at-page)$ ]]; then
+        i=$((i + 1))
+        LAST_PAGE="${!i}"
+        fi
+    if [[ "${!i}" =~ ^-(M|-?minimum-size)$ ]]; then
         MINIMUM_SIZE_FILTER=true
         i=$((i + 1))
         MINSIZE="${!i}"
         fi
-    if [[ "${!i}" =~ ^--?prepare$ ]]; then install_dependencies; fi
+    if [[ "${!i}" =~ ^-(O|-?jpegoptim)$ ]]; then JPEGOPTIM=true; fi
+    if [[ "${!i}" =~ ^-(P|-?create-subfolders)$ ]]; then SUBFOLDERS=true; fi
+    if [[ "${!i}" =~ ^-(s|-?start-at-page)$ ]]; then
+        i=$((i + 1))
+        FIRST_PAGE="${!i}"
+        fi
     done
 if ! [[ "$MINSIZE" =~ ^[\t\ ]*[[:digit:]]+[\t\ ]*$ ]]; then
     echo "'$MINSIZE' is not a valid file size"
-    fi
-if [[ ( $# -eq 0 ) || ( "$ARG_A" == "$0" ) ]]; then
+    exit 96
+elif ! [[ "$FIRST_PAGE" =~ ^[[:digit:]]{1,6}$ ]]; then
+    echo "'$FIRST_PAGE' is not a valid page number"
+    exit 97
+elif ! [[ "$LAST_PAGE" =~ ^[[:digit:]]{1,6}$ ]]; then
+    echo "'$LAST_PAGE' is not a valid page number"
+    exit 97
+elif [[ ( $# -eq 0 ) || ( "$ARG_A" == "$0" ) ]]; then
     help_message short
 elif ! [[ -d "$ARG_B" ]]; then
     echo "'$ARG_B' is not a valid folder"
-    exit 99
+    exit 98
 elif ! [[ "$ARG_A" =~ ^https?://$blog_url_rx/?$ ]]; then
     echo "'$ARG_A' is not a valid blog URL"
-    exit 98
+    exit 99
 else
     BLOG="$ARG_A"
     DOWNLOAD_FOLDER="$ARG_B"
-    BLOGNAME=$(echo "$BLOG" | grep -Eo "$blog_name_rx\.$blog_host_rx")
+    HTML=$(echo "$BLOG" | grep -Eo "$blog_name_rx\.$blog_host_rx")
+    HTML="/tmp/$HTML.page"
     fi
 
 # DOWNLOADING PAGES AND THEN THE IMAGES REFERENCED THEREIN --------------------
-i=1
+i=$FIRST_PAGE
 printf "\n\033[1;4;35m${BLOG##*://}\033[0m\n\033[35m$separator\033[0m\n"
-while wget -q -c -O "/tmp/$BLOGNAME" "$BLOG/page/$i"; do
+BLOG=$(page_url_structure "$BLOG")
+while wget -q -c -O "$HTML$i.html" "$BLOG$i" && [[ "$i" -le "$LAST_PAGE" ]]; do
     if [[ "$SUBFOLDERS" == true ]]; then mkdir "$DOWNLOAD_FOLDER/$i"; fi
     printf "\n\033[1mPAGE $i\033[0m\n\n"
     while read -r img_url; do
@@ -110,11 +144,14 @@ while wget -q -c -O "/tmp/$BLOGNAME" "$BLOG/page/$i"; do
             img_path="$DOWNLOAD_FOLDER/$img_path"
             echo "Downloading '$img_url'"
             wget -q -c -O "$img_path" "$img_url"
+            if [[ ( "$JPEGOPTIM" == true ) && \
+                  ( "${img_path,,}" =~ ^.*jp(e?g|e)$ ) ]]; then
+                  jpegoptim -q -p --strip-iptc --strip-icc "$img_path"
+                  fi
             fi
-        done <<< $(grep -Eio "$img_link_rx" "/tmp/$BLOGNAME")
+        done <<< $(grep -Eio "$img_link_rx" "$HTML$i.html")
+    rm -fr "$HTML$i.html" &> /dev/null
     i=$((i+1))
     done
 
-# REMOVING TEMPORARY FILES ----------------------------------------------------
-rm -fr "/tmp/$BLOGNAME" &> /dev/null
 
