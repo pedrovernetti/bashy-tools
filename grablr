@@ -16,7 +16,7 @@
 help_message ()
 {
     printf "Usage: ${0##*/} [OPTIONS] BLOG_URL DOWNLOAD_FOLDER\n\n"
-    printf "  Downloads every relevant (>2kB) image from a given blog.\n\n"
+    printf "  Downloads every image from every/choosen pages of a given blog.\n\n"
     if [[ "$1" == "full" ]]; then
         printf "  Options:\n\n"
         printf "  -h        print this help message and exit\n"
