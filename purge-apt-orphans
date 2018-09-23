@@ -1,5 +1,15 @@
 #!/bin/bash
 
+ # ==================================================== #
+ # This script looks better in a maximized window, on   #
+ # 1360px or wider screens...                           #
+ #                                                      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # Originally written by <pedrovernetti@gmail.com>      #
+ # -- - - - - - - - - - - - - - - - - - - - - - - - - - #
+ # tested in / thought for Ubuntu 16.04 and 18.04       #
+ # ==================================================== #
+
 if [[ "$1" =~ ^-?-h(elp)?$ ]]; then
     printf "Usage: ${0##*/} [APT_OPTIONS]\n\n"
     printf "Runs 'sudo apt-get [APT_OPTIONS] purge ...' for each package listed by 'deborphan'\n"
