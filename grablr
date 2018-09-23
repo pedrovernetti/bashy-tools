@@ -42,17 +42,6 @@ install_dependencies ()
     sudo apt-get -y install jpegoptim
     exit
 }
-page_url_structure ()
-{
-    if wget -q --spider "$1/page/1" &> /dev/null; then echo "$1/page/"
-    elif wget -q --spider "$1/1" &> /dev/null; then echo "$1/"
-    elif wget -q --spider "$1/new/1" &> /dev/null; then echo "$1/new/"
-    elif wget -q --spider "$1&page" &> /dev/null; then echo "$1&"
-    else
-        echo "could not guess URL structure for '$1'"
-        exit 90
-        fi
-}
 
 # DEFINING UTILITY FUNCTIONS --------------------------------------------------
 seems_relevant_by_size ()
@@ -63,6 +52,17 @@ seems_relevant_by_size ()
             grep -Eo '[[:digit:]]+')
     if [[ "$size" -lt $MINSIZE ]]; then return 1
     else return 0; fi
+}
+page_url_structure ()
+{
+    if wget -q --spider "$1/page/1" &> /dev/null; then echo "$1/page/"
+    elif wget -q --spider "$1/1" &> /dev/null; then echo "$1/"
+    elif wget -q --spider "$1/new/1" &> /dev/null; then echo "$1/new/"
+    elif wget -q --spider "$1&page" &> /dev/null; then echo "$1&"
+    else
+        echo "could not guess URL structure for '$1'"
+        exit 90
+        fi
 }
 
 # SETTING DEFAULT VALUES ------------------------------------------------------
