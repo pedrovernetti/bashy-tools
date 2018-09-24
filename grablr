@@ -135,6 +135,7 @@ BLOG=$(page_url_structure "$BLOG")
 while wget -q -c -O "$HTML$i.html" "$BLOG$i" && [[ "$i" -le "$LAST_PAGE" ]]; do
     if [[ "$SUBFOLDERS" == true ]]; then mkdir "$DOWNLOAD_FOLDER/$i"; fi
     printf "\n\033[1mPAGE $i\033[0m\n\n"
+    found_urls=$(grep -Eio "$img_link_rx" "$HTML$i.html")
     while read -r img_url; do
         img_url="${img_url#src=?}"
         img_url="${img_url%?}"
@@ -149,9 +150,11 @@ while wget -q -c -O "$HTML$i.html" "$BLOG$i" && [[ "$i" -le "$LAST_PAGE" ]]; do
                   jpegoptim -q -p --strip-iptc --strip-icc "$img_path"
                   fi
             fi
-        done <<< $(grep -Eio "$img_link_rx" "$HTML$i.html")
+        done <<< "$found_urls"
     rm -fr "$HTML$i.html" &> /dev/null
+    if [[ $(printf "$found_urls" | wc -l) -lt 1 ]]; then break; fi
     i=$((i+1))
     done
 
+printf "\n\033[35m$separator\033[0m\n\n"
 
